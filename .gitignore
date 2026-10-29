@@ -1,0 +1,16 @@
+out/
+build-libs/
+openhouse-helper.jar
+mod/build/
+mod/.gradle/
+mod/run/
+mod/build.log
+mod/run-client*.log
+mod/msrv.*
+
+ref/
+
+test/
+
+art/*.py
+art/*.jpg

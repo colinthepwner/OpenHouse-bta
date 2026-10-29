@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "openhouse.mod.mixin",
+  "compatibilityLevel": "JAVA_${java}",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [],
+  "client": [
+    "ScreenPagedAccessor",
+    "ScreenSelectServerMixin",
+    "ScreenPauseMixin",
+    "ScreenMainMenuMixin",
+    "MinecraftMixin"
+  ],
+  "server": [
+    "server.MinecraftServerMixin"
+  ]
+}
