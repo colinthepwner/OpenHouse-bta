@@ -33,6 +33,27 @@ public final class ServerRoom {
 
     public static final String ROOM_MARKER = "OPENHOUSE ROOM ";
 
+    public static final String HOST_TOKEN_ENV = "OPENHOUSE_HOST_TOKEN";
+    public static final int HOST_TOKEN_LENGTH = 16;
+    private static final byte[] HOST_TOKEN = hostTokenFromEnv();
+
+    private static byte[] hostTokenFromEnv() {
+        String t = LAN ? System.getenv(HOST_TOKEN_ENV) : null;
+
+        return t != null && t.length() == HOST_TOKEN_LENGTH ? t.getBytes(StandardCharsets.UTF_8) : null;
+    }
+
+    public static boolean isHostToken(String name) {
+        byte[] t = HOST_TOKEN;
+        return t != null && name != null && java.security.MessageDigest.isEqual(t, name.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static java.util.UUID playerId(String name, java.util.UUID sent, boolean host) {
+        boolean none = sent == null || (sent.getMostSignificantBits() == 0 && sent.getLeastSignificantBits() == 0);
+        if (!LAN || host || !none || name == null) return sent;
+        return java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
+    }
+
     private volatile Host host;
     private volatile String target;
     volatile String liveCode;

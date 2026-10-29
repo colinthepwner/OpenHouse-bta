@@ -39,6 +39,8 @@ public final class LocalServer {
     private final String username;
     private final java.util.UUID uuid;
 
+    final String hostToken = newHostToken();
+
     private LocalServer(String worldDir, String username, java.util.UUID uuid, boolean online) {
         this.worldDir = worldDir;
         this.username = username;
@@ -47,6 +49,22 @@ public final class LocalServer {
     }
 
     public static LocalServer current() { return current; }
+
+    public static String hostToken(String host, int port) {
+        LocalServer s = current;
+        if (s == null || s.port <= 0 || port != s.port || !hosting()) return null;
+        String h = host == null ? "" : host.trim().toLowerCase(java.util.Locale.ROOT);
+        boolean loopback = h.equals("127.0.0.1") || h.equals("localhost") || h.equals("::1") || h.equals("[::1]");
+        return loopback ? s.hostToken : null;
+    }
+
+    private static String newHostToken() {
+        String abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder b = new StringBuilder(ServerRoom.HOST_TOKEN_LENGTH);
+        for (int i = 0; i < ServerRoom.HOST_TOKEN_LENGTH; i++) b.append(abc.charAt(r.nextInt(abc.length())));
+        return b.toString();
+    }
 
     public static boolean hosting() {
         LocalServer s = current;
@@ -116,6 +134,7 @@ public final class LocalServer {
             OpenHouseMod.LOG.info("opening {} to friends: server on 127.0.0.1:{} ({})", worldDir, port, online ? "online mode" : "offline mode");
 
             ProcessBuilder pb = new ProcessBuilder(cmd).directory(dir).redirectErrorStream(true);
+            pb.environment().put(ServerRoom.HOST_TOKEN_ENV, hostToken);
             Process p = pb.start();
             proc = p;
             stdin = p.getOutputStream();

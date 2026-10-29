@@ -11,9 +11,11 @@
     "ScreenSelectServerMixin",
     "ScreenPauseMixin",
     "ScreenMainMenuMixin",
-    "MinecraftMixin"
+    "MinecraftMixin",
+    "ScreenConnectingMixin"
   ],
   "server": [
-    "server.MinecraftServerMixin"
+    "server.MinecraftServerMixin",
+    "server.PacketHandlerLoginMixin"
   ]
 }
