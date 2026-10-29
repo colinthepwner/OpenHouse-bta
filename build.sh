@@ -1,5 +1,4 @@
 #!/bin/sh
-# Builds openhouse-helper.jar (needs JDK 8 or newer).
 set -e
 cd "$(dirname "$0")"
 RTC_VER=0.20.0
