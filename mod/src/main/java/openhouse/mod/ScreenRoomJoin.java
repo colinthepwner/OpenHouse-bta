@@ -148,6 +148,7 @@ public final class ScreenRoomJoin extends Screen {
         List<ModShare.Mod> out = new ArrayList<>();
         for (ModShare.Mod m : host) {
             if (OpenHouseMod.MOD_ID.equals(m.id)) continue;
+            if (m.id != null && m.id.startsWith("openhouse:")) continue;
             if (m.version == null || !m.version.equals(have.get(m.id))) out.add(m);
         }
         return out;

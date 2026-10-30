@@ -29,10 +29,14 @@ public final class ModShare {
     private ModShare() { }
 
     public static List<Mod> scan(File modsFolder) {
-        List<Mod> out = new ArrayList<>();
         File[] files = modsFolder.listFiles((d, n) -> n.toLowerCase().endsWith(".jar"));
-        if (files == null) return out;
+        if (files == null) return new ArrayList<>();
         Arrays.sort(files);
+        return scanFiles(Arrays.asList(files));
+    }
+
+    public static List<Mod> scanFiles(List<File> files) {
+        List<Mod> out = new ArrayList<>();
         for (File f : files) {
             try {
                 String id = null, version = null, name = null, env = "*";
@@ -63,6 +67,13 @@ public final class ModShare {
             }
         }
         return out;
+    }
+
+    public static Mod extra(File f, String id, String name) throws IOException {
+        String sha = Rtc.sha256(f);
+        Mod m = new Mod(id, sha.substring(0, 12), name, "*", f.getName(), sha, f.length());
+        m.path = f;
+        return m;
     }
 
     public static String toJson(List<Mod> mods) {

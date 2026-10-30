@@ -15,6 +15,9 @@
 	"icon": "icon.png",
 	"environment": "*",
 	"entrypoints": {
+		"preLaunch": [
+			"openhouse.mod.OpenHousePreLaunch"
+		],
 		"client": [
 			"openhouse.mod.OpenHouseMod"
 		],

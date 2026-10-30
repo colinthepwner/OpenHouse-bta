@@ -14,8 +14,10 @@ import java.io.Writer;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
@@ -32,6 +34,9 @@ public final class LocalServer {
     public volatile String detail = "";
     public volatile int port;
     public volatile String code;
+
+    public volatile List<String> leftOut = new ArrayList<>();
+    private volatile boolean dying;
     volatile boolean announced;
     private volatile Process proc;
     private volatile OutputStream stdin;
@@ -89,6 +94,7 @@ public final class LocalServer {
         boolean online = sid != null && !sid.isEmpty() && !sid.equals("-");
         LocalServer s = new LocalServer(worldDir, mc.session.username, mc.session.uuid, online);
         current = s;
+        OpenHouseDiscord.shareCode = false;
         Thread t = new Thread(s::run, "openhouse local server");
         t.setDaemon(true);
         t.start();
@@ -109,15 +115,127 @@ public final class LocalServer {
             if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("can't create " + dir);
             File world = new File(FabricLoader.getInstance().getGameDir().toFile(), "saves" + File.separator + worldDir);
             if (!new File(world, "level.dat").isFile()) throw new IOException("can't find the world's save (" + world + ")");
+            List<ServerMods.Entry> mods = ServerMods.loaded();
+            File share = shareManifest(mods, base, world);
+
+            copyConfigs(new File(FabricLoader.getInstance().getGameDir().toFile(), "config"), new File(dir, "config"));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> stopAndWait(30000), "openhouse local server stop"));
+
+            for (int attempt = 1; ; attempt++) {
+                List<ServerMods.Entry> left = new ArrayList<>();
+                List<ServerMods.Entry> in = ServerMods.forServer(mods, ServerMods.remembered(), left);
+                List<String> leftNames = new ArrayList<>();
+                Set<String> leftIds = new LinkedHashSet<>();
+                for (ServerMods.Entry e : left) { leftNames.add(e.name); leftIds.add(e.id); }
+                leftOut = leftNames;
+                List<String> lines = runServer(serverJar, dir, world, ServerMods.sync(in), share);
+                if (lines == null) return;
+
+                try {
+                    java.nio.file.Files.copy(new File(dir, "console.log").toPath(), new File(dir, "console-failed-" + attempt + ".log").toPath(),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException ignored) { }
+                Set<String> bad = ServerMods.culprits(lines, in, leftIds);
+                if (bad.isEmpty() || attempt >= 15) {
+                    set(State.FAILED, "The server couldn't start. See openhouse/server/console.log.");
+                    return;
+                }
+                Map<String, String> skip = new LinkedHashMap<>();
+                List<String> names = new ArrayList<>();
+                for (ServerMods.Entry e : in) if (bad.contains(e.id)) { skip.put(e.id, e.version); names.add(e.name); }
+                ServerMods.remember(skip);
+                OpenHouseMod.LOG.info("leaving {} out of the Open to Friends server - it stopped the server from starting (it still runs in the game)", names);
+                set(State.STARTING, "Leaving out " + String.join(", ", names) + " (can't run on a server) - starting again...");
+            }
+        } catch (Exception e) {
+            OpenHouseMod.LOG.warn("Open to Friends failed", e);
+            if (state != State.STOPPING) set(State.FAILED, e.getMessage() == null ? e.toString() : e.getMessage());
+            else set(State.STOPPED, "");
+        }
+    }
+
+    static final java.util.regex.Pattern PRIVATE = java.util.regex.Pattern.compile("(?i)token|secret|passw|auth|account|credential|webhook|api.?key|session");
+
+    static File zipConfigs(File configDir, File zip) {
+        if (!configDir.isDirectory()) return null;
+        int n = 0;
+        try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(new FileOutputStream(zip))) {
+            List<File> todo = new ArrayList<>();
+            todo.add(configDir);
+            while (!todo.isEmpty()) {
+                File d = todo.remove(todo.size() - 1);
+                File[] kids = d.listFiles();
+                if (kids == null) continue;
+                java.util.Arrays.sort(kids);
+                for (File k : kids) {
+                    if (PRIVATE.matcher(k.getName()).find()) continue;
+                    if (k.isDirectory()) { todo.add(k); continue; }
+                    if (k.length() > 512 * 1024) continue;
+                    String name = configDir.toPath().relativize(k.toPath()).toString().replace('\\', '/');
+                    java.util.zip.ZipEntry e = new java.util.zip.ZipEntry(name);
+                    e.setTime(0);
+                    z.putNextEntry(e);
+                    java.nio.file.Files.copy(k.toPath(), z);
+                    z.closeEntry();
+                    n++;
+                }
+            }
+        } catch (IOException e) {
+            OpenHouseMod.LOG.warn("couldn't pack the configs to share: {}", e.toString());
+            return null;
+        }
+        return n > 0 ? zip : null;
+    }
+
+    static void copyConfigs(File from, File to) {
+        File[] kids = from.listFiles();
+        if (kids == null) return;
+        for (File k : kids) {
+            File t = new File(to, k.getName());
+            if (k.isDirectory()) { copyConfigs(k, t); continue; }
+            if (t.isFile() && t.length() == k.length() && t.lastModified() == k.lastModified()) continue;
+            try {
+                to.mkdirs();
+                java.nio.file.Files.copy(k.toPath(), t.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
+            } catch (IOException e) {
+                OpenHouseMod.LOG.warn("couldn't copy config {} for the server: {}", k, e.toString());
+            }
+        }
+    }
+
+    private static File shareManifest(List<ServerMods.Entry> mods, File base, File world) {
+        try {
+            List<File> jars = new ArrayList<>();
+            for (ServerMods.Entry e : mods) jars.add(e.jar);
+            List<openhouse.ModShare.Mod> share = openhouse.ModShare.scanFiles(jars);
+            File cfg = zipConfigs(new File(FabricLoader.getInstance().getGameDir().toFile(), "config"), new File(base, "share-config.zip"));
+            if (cfg != null) share.add(openhouse.ModShare.extra(cfg, "openhouse:config", "the host's mod settings"));
+            File table = new File(world, "uselessNumericalSave.dat");
+            if (FabricLoader.getInstance().isModLoaded("uselessnumerical") && table.isFile()) {
+                File copy = new File(base, "share-uselessnumerical.dat");
+                java.nio.file.Files.copy(table.toPath(), copy.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                share.add(openhouse.ModShare.extra(copy, "openhouse:uselessnumerical", "the world's id table"));
+            }
+            return openhouse.ModShare.writeHostManifest(share, new File(base, "share-game.json"));
+        } catch (Exception e) {
+            OpenHouseMod.LOG.warn("can't list the game's mods to share: {}", e.toString());
+            return null;
+        }
+    }
+
+    private List<String> runServer(File serverJar, File dir, File world, File modsDir, File share) throws Exception {
+        {
             port = freePort();
             writeSettings(dir);
-
             List<String> cmd = new ArrayList<>();
             cmd.add(new File(new File(System.getProperty("java.home"), "bin"), "java").getAbsolutePath());
             cmd.add("-Xmx1536M");
-            cmd.add("-Dfabric.modsFolder=" + modsFolder().getAbsolutePath());
+
+            cmd.add("-Djava.awt.headless=true");
+            cmd.add("-Dfabric.modsFolder=" + modsDir.getAbsolutePath());
+            if (share != null) cmd.add("-Dopenhouse.shareManifest=" + share.getAbsolutePath());
             cmd.add("-Dopenhouse.lan=1");
-            cmd.add("-Dopenhouse.dataDir=" + base.getAbsolutePath());
+            cmd.add("-Dopenhouse.dataDir=" + OpenHouseMod.dataDir().getAbsolutePath());
             cmd.add("-Dopenhouse.parentPid=" + ProcessHandle.current().pid());
             cmd.add("-cp");
             StringBuilder cp = new StringBuilder();
@@ -138,24 +256,35 @@ public final class LocalServer {
             Process p = pb.start();
             proc = p;
             stdin = p.getOutputStream();
-            set(State.STARTING, "Starting the server...");
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> stopAndWait(30000), "openhouse local server stop"));
+            if (state == State.STARTING && !detail.startsWith("Leaving out")) set(State.STARTING, "Starting the server...");
 
+            List<String> lines = new ArrayList<>();
+            dying = false;
             try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
                  PrintWriter console = new PrintWriter(new OutputStreamWriter(new FileOutputStream(new File(dir, "console.log")), StandardCharsets.UTF_8), true)) {
                 String line;
                 while ((line = r.readLine()) != null) {
                     console.println(line);
+                    if (state == State.STARTING && lines.size() < 20000) lines.add(line);
+
+                    if (state == State.STARTING && !dying && (line.contains("Failed to start the minecraft server")
+                            || line.contains("A mod crashed on startup") || line.contains("Exception in thread \"main\""))) {
+                        dying = true;
+                        Thread k = new Thread(() -> {
+                            try { Thread.sleep(5000); } catch (InterruptedException ignored) { }
+                            if (p.isAlive()) p.destroyForcibly();
+                        }, "openhouse end failed start");
+                        k.setDaemon(true);
+                        k.start();
+                    }
                     onLine(line);
                 }
             }
             int exit = p.waitFor();
-            if (state == State.STOPPING) set(State.STOPPED, "");
-            else set(State.FAILED, "The server stopped unexpectedly (exit " + exit + "). See openhouse/server/console.log.");
-        } catch (Exception e) {
-            OpenHouseMod.LOG.warn("Open to Friends failed", e);
-            if (state != State.STOPPING) set(State.FAILED, e.getMessage() == null ? e.toString() : e.getMessage());
-            else set(State.STOPPED, "");
+            if (state == State.STOPPING) { set(State.STOPPED, ""); return null; }
+            if (state == State.STARTING) return lines;
+            set(State.FAILED, "The server stopped unexpectedly (exit " + exit + "). See openhouse/server/console.log.");
+            return null;
         }
     }
 

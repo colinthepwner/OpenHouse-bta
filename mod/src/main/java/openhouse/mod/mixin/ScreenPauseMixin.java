@@ -17,7 +17,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = ScreenPause.class, remap = false, priority = 1100)
 public abstract class ScreenPauseMixin {
-    private static final int OPEN = 7701, CODE = 7702;
+    private static final int OPEN = 7701, CODE = 7702, COPY = 7703;
+    private static final int ICON = 20;
+    private static long copiedUntil;
 
     @Inject(method = "init", at = @At("TAIL"))
     private void openhouse$init(CallbackInfo ci) {
@@ -33,7 +35,8 @@ public abstract class ScreenPauseMixin {
             }
             s.buttons.add(b);
         } else if (LocalServer.hosting() && s.mc.isMultiplayerWorld()) {
-            s.buttons.add(new ButtonElement(CODE, x, y, 200, 20, codeLabel(false)));
+            s.buttons.add(new ButtonElement(CODE, x, y, 200 - ICON - 2, 20, codeLabel(false)));
+            s.buttons.add(new ButtonElement(COPY, x + 200 - ICON, y, ICON, 20, ""));
             for (ButtonElement b : s.buttons) if (b.id == 1) b.displayString = t.translateKey("gui.openhouse.lan.button.close");
         }
         openhouse$layout();
@@ -42,22 +45,41 @@ public abstract class ScreenPauseMixin {
     @Inject(method = "render", at = @At("HEAD"))
     private void openhouse$render(int mx, int my, float partialTick, CallbackInfo ci) {
         openhouse$layout();
+        Screen s = (Screen) (Object) this;
+        for (ButtonElement b : s.buttons) if (b.id == CODE) b.displayString = codeLabel(b.width < 150);
+    }
+
+    @Inject(method = "render", at = @At("TAIL"))
+    private void openhouse$icon(int mx, int my, float partialTick, CallbackInfo ci) {
+        Screen s = (Screen) (Object) this;
+        for (ButtonElement b : s.buttons) {
+            if (b.id != COPY || !b.visible) continue;
+            String tex = System.currentTimeMillis() < copiedUntil ? "/assets/openhouse/gui/copied.png" : "/assets/openhouse/gui/clipboard.png";
+            net.minecraft.client.render.TextureManager tm = s.mc.textureManager;
+            tm.bindTexture(tm.loadTexture(tex));
+            s.drawTexturedModalRect(b.xPosition + (b.width - 12) / 2, b.yPosition + (b.height - 12) / 2, 0, 0, 12, 12, 1.0 / 12, 1.0 / 12);
+        }
     }
 
     private void openhouse$layout() {
         Screen s = (Screen) (Object) this;
-        ButtonElement ours = null;
-        for (ButtonElement b : s.buttons) if (b.id == OPEN || b.id == CODE) ours = b;
-        if (ours == null || ours.width != 200) return;
+        ButtonElement ours = null, copy = null;
         for (ButtonElement b : s.buttons) {
-            if (b == ours || !b.visible) continue;
+            if (b.id == OPEN || b.id == CODE) ours = b;
+            if (b.id == COPY) copy = b;
+        }
+        int full = copy != null ? 200 - ICON - 2 : 200;
+        if (ours == null || ours.width != full) return;
+        for (ButtonElement b : s.buttons) {
+            if (b == ours || b == copy || !b.visible) continue;
             boolean overlap = b.xPosition < ours.xPosition + ours.width && b.xPosition + b.width > ours.xPosition
                     && b.yPosition < ours.yPosition + ours.height && b.yPosition + b.height > ours.yPosition;
             if (!overlap) continue;
             b.width = 98;
             b.xPosition = s.width / 2 - 100;
-            ours.width = 98;
+            ours.width = copy != null ? 98 - ICON - 2 : 98;
             ours.xPosition = s.width / 2 + 2;
+            if (copy != null) copy.xPosition = s.width / 2 + 2 + 98 - ICON;
             if (ours.id == CODE) ours.displayString = codeLabel(true);
             return;
         }
@@ -68,7 +90,10 @@ public abstract class ScreenPauseMixin {
         LocalServer ls = LocalServer.current();
         String code = ls == null ? null : ls.code;
         if (code == null) return t.translateKey(half ? "gui.openhouse.lan.button.nocode.short" : "gui.openhouse.lan.button.nocode");
-        return t.translateKeyAndFormat(half ? "gui.openhouse.lan.button.code.short" : "gui.openhouse.lan.button.code", code);
+
+        boolean pub = openhouse.mod.OpenHouseDiscord.shareCode;
+        return t.translateKeyAndFormat(half ? (pub ? "gui.openhouse.lan.button.code.short.public" : "gui.openhouse.lan.button.code.short")
+                : (pub ? "gui.openhouse.lan.button.code.public" : "gui.openhouse.lan.button.code"), code);
     }
 
     @Inject(method = "buttonClicked", at = @At("HEAD"), cancellable = true)
@@ -85,13 +110,19 @@ public abstract class ScreenPauseMixin {
             mc.statsCounter.add(StatList.leaveGameStat, 1);
             mc.changeWorld(null);
             mc.displayScreen(new ScreenOpenToFriends(LocalServer.start(mc, world), false));
-        } else if (button.id == CODE) {
+        } else if (button.id == COPY) {
             ci.cancel();
             LocalServer ls = LocalServer.current();
             if (ls != null && ls.code != null) {
                 try { Global.accessor.copyToClipboard(ls.code); } catch (Exception ignored) { }
-                button.displayString = I18n.getInstance().translateKey("gui.openhouse.lan.copied");
+                copiedUntil = System.currentTimeMillis() + 1500;
             }
+        } else if (button.id == CODE) {
+
+            ci.cancel();
+            openhouse.mod.OpenHouseDiscord.shareCode = !openhouse.mod.OpenHouseDiscord.shareCode;
+            mc.hudIngame.addChatMessage(I18n.getInstance().translateKey(openhouse.mod.OpenHouseDiscord.shareCode
+                    ? "gui.openhouse.discord.public" : "gui.openhouse.discord.friends"));
         } else if (button.id == 1 && LocalServer.hosting() && mc.isMultiplayerWorld()) {
 
             ci.cancel();

@@ -16,7 +16,9 @@
     "ServerManagerMixin",
     "MobRendererPlayerMixin",
     "GetSkinUrlThreadMixin",
-    "PacketHandlerClientMixin"
+    "PacketHandlerClientMixin",
+    "HalpLibeConfigMixin",
+    "RichPresenceMixin"
   ],
   "server": [
     "server.MinecraftServerMixin",
