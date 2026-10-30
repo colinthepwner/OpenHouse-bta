@@ -59,10 +59,18 @@ public final class Joiner {
         t.start();
     }
 
+    static final long RETRY_MS = 15000, RETRY_GAP_MS = 2000;
+    private volatile long retryUntil;
+
     public void probe() {
         if (stopping) return;
+        retryUntil = System.currentTimeMillis() + RETRY_MS;
 
         set(State.SEARCHING, "");
+        sendProbe();
+    }
+
+    private void sendProbe() {
         OutputStream in = childIn;
         if (in == null) return;
         try {
@@ -76,6 +84,7 @@ public final class Joiner {
     public enum ModState { IDLE, LISTING, LISTED, DOWNLOADING, DONE, FAILED }
     public volatile ModState modState = ModState.IDLE;
     public volatile List<ModShare.Mod> modList;
+    public volatile String hostVersion;
     public volatile String modError = "";
     public volatile long modBytesDone, modBytesTotal;
     private final java.util.Map<String, Long> modProgress = new java.util.concurrent.ConcurrentHashMap<>();
@@ -147,7 +156,8 @@ public final class Joiner {
                 Process p = Rtc.start(self, libs, "openhouse.rtc.JoinMain", args);
                 child = p;
                 childIn = p.getOutputStream();
-                if (state != State.READY) set(State.SEARCHING, "");
+
+                if (state != State.READY) { retryUntil = System.currentTimeMillis() + RETRY_MS; set(State.SEARCHING, ""); }
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
                 String line;
                 while ((line = r.readLine()) != null) line(line);
@@ -167,6 +177,15 @@ public final class Joiner {
         }
     }
 
+    private void probeAgainSoon() {
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(RETRY_GAP_MS); } catch (InterruptedException e) { return; }
+            if (!stopping && state == State.SEARCHING) sendProbe();
+        }, "openhouse probe again");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private void line(String line) {
         int sp = line.indexOf(' ');
         String key = sp < 0 ? line : line.substring(0, sp);
@@ -184,9 +203,12 @@ public final class Joiner {
                 log.accept("can't reach the matchmaking server (" + rest + "), retrying");
                 set(state, "Can't reach the matchmaking server - retrying...");
                 break;
-            case "FOUND":     set(State.READY, ""); break;
-            case "NOTFOUND":  set(State.NOT_FOUND, ""); break;
-            case "NOANSWER":  set(State.NO_ANSWER, ""); break;
+            case "FOUND":     retryUntil = 0; set(State.READY, ""); break;
+            case "NOTFOUND":
+            case "NOANSWER":
+                if (System.currentTimeMillis() < retryUntil) { probeAgainSoon(); break; }
+                set(key.equals("NOTFOUND") ? State.NOT_FOUND : State.NO_ANSWER, "");
+                break;
             case "OPEN": {
                 String[] f = rest.split(" ");
                 connections = Integer.parseInt(f[0]);
@@ -205,6 +227,14 @@ public final class Joiner {
             case "MODLIST":
                 try {
                     modList = rest.equals("none") ? new ArrayList<>() : ModShare.fromJson(rest);
+
+                    String hv = null;
+                    if (!rest.equals("none")) {
+                        java.util.Map<String, Object> root = Json.obj(Json.parse(rest));
+                        hv = root == null ? null : Json.str(root.get("openhouse"));
+                    }
+                    if (hv == null) for (ModShare.Mod m : modList) if ("openhouse".equals(m.id)) hv = m.version;
+                    hostVersion = hv;
                     modState = ModState.LISTED;
                 } catch (RuntimeException e) {
                     modError = "the host's mod list didn't make sense";

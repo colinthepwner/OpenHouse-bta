@@ -12,10 +12,15 @@
     "ScreenPauseMixin",
     "ScreenMainMenuMixin",
     "MinecraftMixin",
-    "ScreenConnectingMixin"
+    "ScreenConnectingMixin",
+    "ServerManagerMixin",
+    "MobRendererPlayerMixin",
+    "GetSkinUrlThreadMixin",
+    "PacketHandlerClientMixin"
   ],
   "server": [
     "server.MinecraftServerMixin",
-    "server.PacketHandlerLoginMixin"
+    "server.PacketHandlerLoginMixin",
+    "server.PlayerListMixin"
   ]
 }

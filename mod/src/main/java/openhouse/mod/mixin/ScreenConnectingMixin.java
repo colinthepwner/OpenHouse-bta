@@ -18,6 +18,8 @@ public abstract class ScreenConnectingMixin {
             at = @At(value = "INVOKE", target = "Ljava/lang/Thread;start()V"), require = 0)
     private void openhouse$ownWorld(Minecraft mc, String host, int port, CallbackInfo ci) {
         openhouse$hostToken = LocalServer.hostToken(host, port);
+
+        openhouse.mod.OpenHouseMod.connectingTo(host, port);
     }
 
     @ModifyArg(method = "lambda$new$0",

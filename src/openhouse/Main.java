@@ -25,14 +25,17 @@ import javax.swing.WindowConstants;
 
 public final class Main {
     public static void main(String[] args) throws Exception {
-        boolean mcre = false, relay = false;
+        boolean mcre = false, relay = false, noUpdate = false;
         java.util.List<String> rest = new java.util.ArrayList<>();
         for (String a : args) {
             if (a.equals("--mcre")) mcre = true;
             else if (a.equals("--relay")) relay = true;
+            else if (a.equals("--no-update")) noUpdate = true;
             else rest.add(a);
         }
         File dir = dataDir();
+        removeUpdateCopy();
+        if (!noUpdate && System.getenv("OPENHOUSE_UPDATED") == null && selfUpdate(dir, args)) return;
         if (rest.isEmpty()) {
             if (!GraphicsEnvironment.isHeadless()) { window(dir); return; }
             usage();
@@ -54,6 +57,48 @@ public final class Main {
                 + "  java -jar openhouse-helper.jar join <CODE>      join a room, then Direct Connect to the address it shows\n"
                 + "  java -jar openhouse-helper.jar host [address]   give your server a room code (default localhost:25565)\n"
                 + "  java -jar openhouse-helper.jar                  open the join window");
+    }
+
+    static final String UPDATE_COPY = "openhouse-helper-update.jar";
+    @SuppressWarnings("unused") static Process swap;
+
+    static boolean selfUpdate(File dir, String[] args) {
+        try {
+            File self = Rtc.self();
+            if (!self.isFile() || self.getName().equals(UPDATE_COPY)) return false;
+            Update.Release r = Update.latestHelper();
+            if (!r.newer()) return false;
+            say("A newer OpenHouse helper is out (" + r.version + ", this is " + Version.VERSION + ") - updating...");
+            File jar = Update.download(r, new File(dir, "update"), null);
+            File run = new File(self.getParentFile(), UPDATE_COPY);
+            java.nio.file.Files.copy(jar.toPath(), run.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            swap = Update.startSwap(self, jar, dir, java.util.Collections.singletonList(self.getAbsolutePath()),
+                    java.util.Collections.<String>emptyList(), new File(System.getProperty("user.dir")));
+
+            File bin = new File(System.getProperty("java.home"), "bin");
+            File javaw = new File(bin, "javaw.exe");
+            String javaBin = System.console() == null && javaw.isFile() ? javaw.getPath() : new File(bin, "java").getPath();
+            java.util.List<String> cmd = new java.util.ArrayList<>();
+            cmd.add(javaBin);
+            cmd.add("-jar");
+            cmd.add(run.getAbsolutePath());
+            cmd.addAll(java.util.Arrays.asList(args));
+            ProcessBuilder pb = new ProcessBuilder(cmd).inheritIO();
+            pb.environment().put("OPENHOUSE_UPDATED", "1");
+            int code = pb.start().waitFor();
+            System.exit(code);
+            return true;
+        } catch (Exception e) {
+            say("(couldn't update the helper: " + (e.getMessage() == null ? e.toString() : e.getMessage()) + " - carrying on with " + Version.VERSION + ")");
+            return false;
+        }
+    }
+
+    static void removeUpdateCopy() {
+        try {
+            File self = Rtc.self();
+            if (self.isFile() && !self.getName().equals(UPDATE_COPY)) new File(self.getParentFile(), UPDATE_COPY).delete();
+        } catch (Exception ignored) { }
     }
 
     static File dataDir() {

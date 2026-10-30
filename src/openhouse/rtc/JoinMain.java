@@ -407,6 +407,7 @@ public final class JoinMain {
         final List<RTCIceCandidate> early = new ArrayList<>();
         boolean remoteSet;
         volatile boolean answered, opened, closed;
+        volatile long received;
         final BlockingQueue<byte[]> toGame = new LinkedBlockingQueue<>();
 
         Link(Socket tcp) { this(tcp, false); }
@@ -456,7 +457,7 @@ public final class JoinMain {
                     byte[] bytes = new byte[d.remaining()];
                     d.get(bytes);
                     if (mods) modInbox.offer(new Object[] { b.binary, bytes });
-                    else if (bytes.length > 0) toGame.offer(bytes);
+                    else if (bytes.length > 0) { received += bytes.length; toGame.offer(bytes); }
                 }
             });
             pc.createOffer(new RTCOfferOptions(), new CreateSessionDescriptionObserver() {
@@ -466,7 +467,9 @@ public final class JoinMain {
                             sendSignal(Json.map("type", "OFFER", "dst", room, "payload", Json.map(
                                     "sdp", Json.map("type", "offer", "sdp", offer.sdp),
                                     "type", "data", "connectionId", cid, "label", mods ? MODS_LABEL : cid,
-                                    "serialization", "raw", "reliable", Boolean.TRUE)));
+                                    "serialization", "raw", "reliable", Boolean.TRUE,
+
+                                    "oh", openhouse.Version.VERSION)));
                         }
                         public void onFailure(String e) { log("setLocalDescription: " + e); close(); }
                     });
@@ -478,6 +481,7 @@ public final class JoinMain {
                     try { Thread.sleep(OPEN_TIMEOUT_MS); } catch (InterruptedException ignored) { }
                     if (!opened && !closed) {
                         log("couldn't connect to the room's host in time (no network path found)");
+                        tell("Couldn't reach the room's host - try joining again.");
                         close();
                     }
                 }, "openhouse open watchdog");
@@ -518,11 +522,13 @@ public final class JoinMain {
         }
 
         @Override public void onConnectionChange(RTCPeerConnectionState s) {
+            debug(cid + " connection " + s);
             if (s == RTCPeerConnectionState.FAILED || s == RTCPeerConnectionState.CLOSED) close();
         }
 
         private boolean piped;
         void opened() {
+            debug(cid + " channel open" + (mods ? " (mods)" : tcp == null ? " (probe)" : ""));
             if (mods) {
                 opened = true;
                 synchronized (state) { state.notifyAll(); }
@@ -534,6 +540,7 @@ public final class JoinMain {
                 opened = true;
             }
             reportPath();
+            watchFirstByte();
             Thread down = new Thread(this::down, "openhouse down");
             down.setDaemon(true);
             down.start();
@@ -567,17 +574,54 @@ public final class JoinMain {
             }
         }
 
+        static final long FIRST_BYTE_MS = 15000;
+
+        void watchFirstByte() {
+            Thread w = new Thread(() -> {
+                try { Thread.sleep(FIRST_BYTE_MS); } catch (InterruptedException e) { return; }
+                if (closed || received > 0) return;
+                log("the room's host didn't answer a connection in " + FIRST_BYTE_MS / 1000 + " s - dropping it");
+                tell("The room's host didn't answer - try joining again.");
+                close();
+            }, "openhouse first byte watch");
+            w.setDaemon(true);
+            w.start();
+        }
+
+        private volatile boolean told;
+
+        void tell(String why) {
+            if (tcp == null || received > 0 || told) return;
+            told = true;
+            try {
+                java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
+                java.io.DataOutputStream d = new java.io.DataOutputStream(b);
+                d.writeByte(255);
+                d.writeShort(why.length());
+                d.write(why.getBytes(StandardCharsets.UTF_16BE));
+                d.flush();
+                OutputStream o = tcp.getOutputStream();
+                o.write(b.toByteArray());
+                o.flush();
+            } catch (IOException ignored) {
+            }
+        }
+
         void down() {
             try {
                 OutputStream o = tcp.getOutputStream();
-                while (!closed) {
+                while (true) {
                     byte[] b = toGame.take();
                     if (b.length == 0) break;
                     o.write(b);
                     if (toGame.isEmpty()) o.flush();
                 }
+                o.flush();
             } catch (Exception ignored) {
-            } finally { close(); }
+            } finally {
+                close();
+                try { tcp.close(); } catch (IOException ignored) { }
+            }
         }
 
         void up() {
@@ -603,9 +647,21 @@ public final class JoinMain {
                 if (closed) return;
                 closed = true;
             }
+            debug(cid + " closed" + (tcp == null ? (mods ? " (mods)" : " (probe)") : opened ? ", " + received + " bytes from the host" : " (never opened)"));
             links.remove(cid, this);
             toGame.offer(new byte[0]);
-            try { if (tcp != null) tcp.close(); } catch (IOException ignored) { }
+            tell("Lost the connection to the room's host - try joining again.");
+
+            if (tcp != null && !piped) {
+                try { tcp.close(); } catch (IOException ignored) { }
+            } else if (tcp != null) {
+                Thread g = new Thread(() -> {
+                    try { Thread.sleep(2000); } catch (InterruptedException ignored) { }
+                    try { tcp.close(); } catch (IOException ignored) { }
+                }, "openhouse close socket");
+                g.setDaemon(true);
+                g.start();
+            }
 
             if (!opened && pc != null)
                 sendSignal(Json.map("type", "CANDIDATE", "dst", room, "payload",

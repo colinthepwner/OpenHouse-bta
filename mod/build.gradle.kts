@@ -6,6 +6,12 @@ plugins {
 val lwjglNatives = resolveLwjglNatives()
 
 val modVersion = "${providers.gradleProperty("mod_version").get()}+${libs.versions.bta.get()}"
+
+run {
+	val v = providers.gradleProperty("mod_version").get()
+	val src = file("../src/openhouse/Version.java").readText()
+	if (!src.contains("VERSION = \"$v\"")) throw GradleException("../src/openhouse/Version.java doesn't say $v - bump both together")
+}
 val modGroup: Provider<String> = providers.gradleProperty("mod_group")
 val modName: Provider<String> = providers.gradleProperty("mod_name")
 

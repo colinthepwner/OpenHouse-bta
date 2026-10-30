@@ -1,6 +1,7 @@
 package openhouse.mod;
 
 import openhouse.Joiner;
+import openhouse.Update;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -29,6 +30,7 @@ public final class OpenHouseMod implements ClientModInitializer {
     private static volatile String autoJoin = System.getProperty("openhouse.autojoin");
     public static final String PACK = System.getProperty("openhouse.pack", "");
     private static volatile ScreenMainMenu titlePending;
+    private static boolean updateOffered;
 
     public static void titleScreen(ScreenMainMenu menu) {
         titlePending = menu;
@@ -50,6 +52,15 @@ public final class OpenHouseMod implements ClientModInitializer {
             }
         } else if (menu != null && !(mc.currentScreen instanceof ScreenMainMenu)) {
             titlePending = null;
+        }
+
+        if (mc.currentScreen instanceof ScreenMainMenu) {
+            if (PACK.isEmpty()) Updater.checkInBackground();
+            Update.Release r = Updater.latest;
+            if (!updateOffered && r != null && r != Updater.NONE && r.newer()) {
+                updateOffered = true;
+                mc.displayScreen(new ScreenUpdate(mc.currentScreen, r, null));
+            }
         }
 
         LocalServer ls = LocalServer.current();
@@ -91,6 +102,37 @@ public final class OpenHouseMod implements ClientModInitializer {
         joiner = new Joiner(dataDir(), code, s -> LOG.info("[room {}] {}", code, s));
         joiner.start();
         return joiner;
+    }
+
+    private static volatile String connectHost;
+    private static volatile int connectPort;
+
+    public static void connectingTo(String host, int port) {
+        connectHost = host;
+        connectPort = port;
+    }
+
+    public static boolean connectingToRoom() {
+        String h = connectHost;
+        Joiner j = joiner;
+        if (h == null || j == null || j.port <= 0 || connectPort != j.port) return false;
+        h = h.trim().toLowerCase(java.util.Locale.ROOT);
+        return h.equals("127.0.0.1") || h.equals("localhost") || h.equals("::1") || h.equals("[::1]");
+    }
+
+    public static final String LAN_MARK = " (OpenHouse)";
+    public static boolean isRoomEntry(String name, String motd, String address) {
+        if ((name != null && name.endsWith(LAN_MARK)) || (motd != null && motd.endsWith(LAN_MARK))) return true;
+        if (address == null) return false;
+        String a = address.trim().toLowerCase(java.util.Locale.ROOT);
+        int c = a.lastIndexOf(':');
+        if (c <= 0) return false;
+        String host = a.substring(0, c);
+        int port;
+        try { port = Integer.parseInt(a.substring(c + 1)); } catch (NumberFormatException e) { return false; }
+        boolean loopback = host.equals("127.0.0.1") || host.equals("localhost") || host.equals("[::1]") || host.equals("::1");
+        Joiner j = joiner;
+        return loopback && j != null && j.port > 0 && port == j.port;
     }
 
     private static Properties settings() {

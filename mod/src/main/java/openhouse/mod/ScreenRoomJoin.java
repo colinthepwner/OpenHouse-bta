@@ -3,6 +3,7 @@ package openhouse.mod;
 import openhouse.Joiner;
 import openhouse.ModShare;
 import openhouse.Rtc;
+import openhouse.Version;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -23,14 +24,15 @@ import org.jetbrains.annotations.NotNull;
 import org.lwjgl.input.Keyboard;
 
 public final class ScreenRoomJoin extends Screen {
-    private enum Phase { LOOKUP, CHECK, ASK, DOWNLOAD, RESTART, FAILED, CONNECT }
+    private enum Phase { LOOKUP, CHECK, VERSION, ASK, DOWNLOAD, RESTART, FAILED, CONNECT }
 
     private final String code;
     private final Joiner joiner;
     private Phase phase = Phase.LOOKUP;
     private List<ModShare.Mod> hostMods = new ArrayList<>(), missing = new ArrayList<>();
     private String problem = "";
-    private ButtonElement back, retry, download, anyway;
+    private ButtonElement back, retry, download, anyway, update;
+    private boolean hostOlder;
     private long checkStarted;
 
     public ScreenRoomJoin(Screen parent, String code) {
@@ -46,6 +48,7 @@ public final class ScreenRoomJoin extends Screen {
         download = add(new ButtonElement(2, width / 2 - 100, height / 4 + 84, 98, 20, t.translateKey("gui.openhouse.mods.button.download")));
         anyway = add(new ButtonElement(3, width / 2 + 2, height / 4 + 84, 98, 20, t.translateKey("gui.openhouse.mods.button.anyway")));
         back = add(new ButtonElement(0, width / 2 - 100, height / 4 + 132, t.translateKey("gui.openhouse.button.back")));
+        update = add(new ButtonElement(4, width / 2 - 100, height / 4 + 84, t.translateKey("gui.openhouse.version.button.update")));
         layout();
     }
 
@@ -55,6 +58,7 @@ public final class ScreenRoomJoin extends Screen {
         retry.visible = retry.enabled = ended;
         download.visible = download.enabled = phase == Phase.ASK;
         anyway.visible = anyway.enabled = phase == Phase.ASK;
+        update.visible = update.enabled = phase == Phase.VERSION && !hostOlder;
         back.visible = back.enabled = phase != Phase.RESTART;
     }
 
@@ -72,6 +76,11 @@ public final class ScreenRoomJoin extends Screen {
                 break;
             case CHECK:
                 if (joiner.modState == Joiner.ModState.LISTED) {
+                    if (!Version.same(joiner.hostVersion, Version.VERSION)) {
+                        hostOlder = Version.compare(joiner.hostVersion, Version.VERSION) < 0;
+                        phase = Phase.VERSION;
+                        break;
+                    }
                     hostMods = joiner.modList;
                     missing = missingMods(hostMods);
                     if (missing.isEmpty()) connect();
@@ -93,9 +102,9 @@ public final class ScreenRoomJoin extends Screen {
                                 .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("") + ".jar").toPath(), StandardCopyOption.REPLACE_EXISTING);
                         joiner.downloadClose();
                         OpenHouseMod.rememberCode(code);
-                        Relaunch.start(pack, code);
+                        restarted = Relaunch.start(pack, code);
                         phase = Phase.RESTART;
-                        restartAt = System.currentTimeMillis() + 1500;
+                        restartAt = System.currentTimeMillis() + 4000;
                     } catch (Exception e) {
                         fail(e.getMessage() == null ? e.toString() : e.getMessage());
                     }
@@ -105,13 +114,18 @@ public final class ScreenRoomJoin extends Screen {
                 break;
             case RESTART:
 
-                if (System.currentTimeMillis() > restartAt) { restartAt = Long.MAX_VALUE; mc.shutdown(); }
+                Process p = restarted;
+                if (p != null && !p.isAlive()) {
+                    restartAt = Long.MAX_VALUE;
+                    fail(I18n.getInstance().translateKeyAndFormat("gui.openhouse.mods.restartfailed", p.exitValue()));
+                } else if (System.currentTimeMillis() > restartAt) { restartAt = Long.MAX_VALUE; mc.shutdown(); }
                 break;
             default:
         }
         layout();
     }
     private long restartAt = Long.MAX_VALUE;
+    private Process restarted;
 
     private void fail(String why) {
         problem = why == null ? "" : why;
@@ -175,6 +189,8 @@ public final class ScreenRoomJoin extends Screen {
             startDownload();
         } else if (button == anyway) {
             connect();
+        } else if (button == update) {
+            mc.displayScreen(new ScreenUpdate(getParentScreen(), null, code));
         }
     }
 
@@ -204,6 +220,14 @@ public final class ScreenRoomJoin extends Screen {
             case CHECK:
                 lines.add(t.translateKey("gui.openhouse.mods.checking"));
                 break;
+            case VERSION: {
+                String hv = Version.base(joiner.hostVersion);
+                lines.add(hv == null ? t.translateKeyAndFormat("gui.openhouse.version.older", Version.VERSION)
+                        : t.translateKeyAndFormat("gui.openhouse.version.different", hv, Version.VERSION));
+                lines.add(t.translateKey(hostOlder ? "gui.openhouse.version.hostupdate" : "gui.openhouse.version.youupdate"));
+                color = 0xFFFFFF;
+                break;
+            }
             case ASK: {
                 long bytes = 0;
                 for (ModShare.Mod m : missing) bytes += Math.max(0, m.size);

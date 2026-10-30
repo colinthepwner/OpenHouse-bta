@@ -28,8 +28,9 @@ public final class ServerRoom {
     volatile String address = "";
     volatile String token = "";
     volatile boolean shareMods = true;
+    volatile boolean autoUpdate = true;
 
-    static final boolean LAN = System.getProperty("openhouse.lan") != null;
+    public static final boolean LAN = System.getProperty("openhouse.lan") != null;
 
     public static final String ROOM_MARKER = "OPENHOUSE ROOM ";
 
@@ -65,6 +66,7 @@ public final class ServerRoom {
     public synchronized void serverStarted(MinecraftServer server) {
         load();
         if (LAN) watchParent(server);
+        else if (autoUpdate) updateInBackground();
         String ip = server.propertyManager.getStringProperty("server-ip", "");
         int port = server.argPort >= 0 ? server.argPort : server.propertyManager.getIntProperty("server-port", 25565);
 
@@ -189,6 +191,56 @@ public final class ServerRoom {
         address = p.getProperty("address", "").trim();
         token = p.getProperty("token", "").trim();
         shareMods = !"false".equalsIgnoreCase(p.getProperty("shareMods", "true").trim());
+        autoUpdate = !"false".equalsIgnoreCase(p.getProperty("autoUpdate", "true").trim());
+    }
+
+    @SuppressWarnings("unused") private volatile Process swap;
+
+    private static final java.util.Map<String, Boolean> ACCOUNTS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static Boolean mojangAccount(String name) {
+        if (!name.matches("[A-Za-z0-9_]{3,16}")) return Boolean.FALSE;
+        String key = name.toLowerCase(java.util.Locale.ROOT);
+        Boolean known = ACCOUNTS.get(key);
+        if (known != null) return known;
+        try {
+            java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(
+                    "https://api.minecraftservices.com/minecraft/profile/lookup/name/" + name).openConnection();
+            c.setConnectTimeout(5000);
+            c.setReadTimeout(8000);
+            c.setRequestProperty("User-Agent", "OpenHouse/" + openhouse.Version.VERSION);
+            int code = c.getResponseCode();
+            Boolean result = code == 200 ? Boolean.TRUE : code == 404 ? Boolean.FALSE : null;
+            if (result != null) ACCOUNTS.put(key, result);
+            else LOG.info("Mojang's name lookup answered {} for {} - keeping the account check", code, name);
+            return result;
+        } catch (Exception e) {
+            LOG.info("couldn't ask Mojang whether {} is an account ({}) - keeping the account check", name, e.toString());
+            return null;
+        }
+    }
+
+    private void updateInBackground() {
+        Thread t = new Thread(() -> {
+            try {
+                String mine = FabricLoader.getInstance().getModContainer("openhouse")
+                        .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("");
+                openhouse.Update.Release r = openhouse.Update.latestMod(openhouse.Update.gameVersion(mine));
+                if (!r.newer()) return;
+                File self = Rtc.self();
+                if (!self.isFile()) return;
+                LOG.info("OpenHouse {} is out (this server has {}) - downloading it", r.version, openhouse.Version.VERSION);
+                File jar = openhouse.Update.download(r, new File(dataDir, "update"), null);
+                swap = openhouse.Update.startSwap(self, jar, dataDir, java.util.Collections.singletonList(self.getParentFile().getAbsolutePath()),
+                        java.util.Collections.<String>emptyList(), new File(System.getProperty("user.dir")));
+                LOG.info("OpenHouse {} goes in when this server stops - restart the server to use it (players on {} can't join by code until then). "
+                        + "If it isn't in after a restart, replace {} with {} yourself.", r.version, r.version, self.getName(), jar.getPath());
+            } catch (Exception e) {
+                LOG.info("couldn't check for an OpenHouse update: {}", e.toString());
+            }
+        }, "openhouse update check");
+        t.setDaemon(true);
+        t.start();
     }
 
     synchronized void save() {
@@ -210,6 +262,10 @@ public final class ServerRoom {
                     + "# Offer this server's mods to players who join by code, so they play with the same\n"
                     + "# mods (they're asked first). true or false\n"
                     + "shareMods=" + shareMods + "\n"
+                    + "\n"
+                    + "# Download newer OpenHouse versions by itself; they go in when the server stops.\n"
+                    + "# true or false\n"
+                    + "autoUpdate=" + autoUpdate + "\n"
                     + "\n"
                     + "# Keeps the code registered to this server between restarts. Don't share it; empty it to\n"
                     + "# start fresh.\n"
