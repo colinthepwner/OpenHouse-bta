@@ -54,6 +54,13 @@ public final class OpenHouseMod implements ClientModInitializer {
             titlePending = null;
         }
 
+        String discordCode = OpenHouseDiscord.pendingJoin;
+        if (discordCode != null && mc.currentWorld == null && (mc.currentScreen instanceof ScreenMainMenu || mc.currentScreen instanceof ScreenSelectServer)) {
+            OpenHouseDiscord.pendingJoin = null;
+            Object parent = mc.currentScreen instanceof ScreenSelectServer ? mc.currentScreen : new ScreenSelectServer(mc.currentScreen);
+            mc.displayScreen(new ScreenRoomJoin((ScreenSelectServer) parent, discordCode));
+        }
+
         if (mc.currentScreen instanceof ScreenMainMenu) {
             if (PACK.isEmpty()) Updater.checkInBackground();
             Update.Release r = Updater.latest;
@@ -67,6 +74,9 @@ public final class OpenHouseMod implements ClientModInitializer {
         if (ls != null && ls.code != null && !ls.announced && LocalServer.hosting() && mc.thePlayer != null && mc.isMultiplayerWorld() && mc.hudIngame != null) {
             ls.announced = true;
             mc.hudIngame.addChatMessage(I18n.getInstance().translateKeyAndFormat("gui.openhouse.lan.announce", ls.code));
+
+            if (!ls.leftOut.isEmpty())
+                mc.hudIngame.addChatMessage(I18n.getInstance().translateKeyAndFormat("gui.openhouse.lan.leftout", String.join(", ", ls.leftOut)));
         }
     }
 

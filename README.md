@@ -50,6 +50,10 @@ version is out.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
   that goes with their name.
 - Two people can't play under the same name at once.
+- Mods that only work in the game stay out of your world's server by themselves, and friends get
+  your mod settings along with your mods.
+- With BTA's Discord presence on, click your room code in the pause menu to show it on your
+  Discord profile so friends can press Join.
 - The first time you use it, it downloads a couple of things it needs.
 - Some school, work and phone networks block this kind of connection.
 - If codes stop working for everybody at once, the free matchmaking service it uses is probably

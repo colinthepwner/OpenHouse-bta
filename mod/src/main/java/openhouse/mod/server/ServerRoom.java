@@ -132,6 +132,12 @@ public final class ServerRoom {
 
     private java.io.File shareManifest() {
         if (!shareMods) return null;
+
+        String given = System.getProperty("openhouse.shareManifest");
+        if (given != null && !given.isEmpty() && new java.io.File(given).isFile()) {
+            LOG.info("sharing the host's mods with players who join by code");
+            return new java.io.File(given);
+        }
         try {
             String prop = System.getProperty("fabric.modsFolder");
             java.io.File folder = prop != null && !prop.isEmpty() ? new java.io.File(prop) : new java.io.File(FabricLoader.getInstance().getGameDir().toFile(), "mods");
