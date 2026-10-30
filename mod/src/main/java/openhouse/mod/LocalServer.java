@@ -242,7 +242,8 @@ public final class LocalServer {
             w.write("server-ip=\n");
             w.write("server-port=" + port + "\n");
             w.write("online-mode=" + online + "\n");
-            w.write("motd=" + worldDir.replace("\n", " ") + "\n");
+
+            w.write("motd=" + worldDir.replace("\n", " ") + OpenHouseMod.LAN_MARK + "\n");
             w.write("max-players=8\n");
             w.write("spawn-protection=0\n");
             w.write("difficulty=" + (d == null ? 2 : d.id()) + "\n");

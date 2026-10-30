@@ -53,6 +53,9 @@ public final class HostMain {
 
     static void log(String s) { synchronized (System.out) { System.out.println("LOG " + s); System.out.flush(); } }
 
+    static final boolean DEBUG = System.getenv("OPENHOUSE_DEBUG") != null;
+    static void debug(String s) { if (DEBUG) log(String.format("%tT.%<tL %s", System.currentTimeMillis(), s)); }
+
     static volatile String shareJson;
     static final Map<String, java.io.File> shareFiles = new ConcurrentHashMap<>();
     static final String MODS_LABEL = "openhouse-mods";
@@ -63,6 +66,8 @@ public final class HostMain {
             Map<String, Object> root = Json.obj(Json.parse(text));
             Map<String, Object> paths = root == null ? null : Json.obj(root.remove("paths"));
             if (paths != null) for (Map.Entry<String, Object> e : paths.entrySet()) shareFiles.put(e.getKey(), new java.io.File(String.valueOf(e.getValue())));
+
+            root.put("openhouse", openhouse.Version.VERSION);
             shareJson = Json.write(root);
             log("sharing " + shareFiles.size() + " mod files with joiners");
         } catch (Exception e) {
@@ -103,6 +108,7 @@ public final class HostMain {
             try {
                 signal = WsClient.connect(SIGNAL + "&id=" + PREFIX + code + "&token=" + token + "&version=1.5.4", new WsClient.Listener() {
                     public void onText(String text) {
+                        debug("in  " + (text.length() > 200 ? text.substring(0, 200) + "..." : text));
                         Map<String, Object> m = Json.obj(Json.parse(text));
                         if (m == null) return;
                         String type = Json.str(m.get("type"));
@@ -147,7 +153,9 @@ public final class HostMain {
     static void sendSignal(Map<String, Object> m) {
         WsClient s = signal;
         if (s == null) return;
-        try { s.send(Json.write(m)); } catch (IOException e) { log("signaling send failed: " + e.getMessage()); }
+        String text = Json.write(m);
+        debug("out " + (text.length() > 200 ? text.substring(0, 200) + "..." : text));
+        try { s.send(text); } catch (IOException e) { log("signaling send failed: " + e.getMessage()); }
     }
 
     static void onSignal(Map<String, Object> m) {
@@ -162,7 +170,7 @@ public final class HostMain {
             if (cid == null || sdp == null) return;
             Peer old = peers.remove(cid);
             if (old != null) old.close();
-            Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))));
+            Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))), Json.str(payload.get("oh")));
             peers.put(cid, p);
             p.offer(Json.str(sdp.get("sdp")));
             Thread w = new Thread(() -> {
@@ -194,6 +202,7 @@ public final class HostMain {
     static final class Peer implements PeerConnectionObserver {
         final String remote, cid;
         final boolean mods;
+        final String theirVersion;
         final RTCPeerConnection pc;
         final List<RTCIceCandidate> early = new ArrayList<>();
         boolean remoteSet;
@@ -202,10 +211,11 @@ public final class HostMain {
         final BlockingQueue<byte[]> toServer = new LinkedBlockingQueue<>();
         volatile boolean closed;
 
-        Peer(String remote, String cid, boolean mods) {
+        Peer(String remote, String cid, boolean mods, String theirVersion) {
             this.remote = remote;
             this.cid = cid;
             this.mods = mods;
+            this.theirVersion = theirVersion;
             RTCConfiguration cfg = new RTCConfiguration();
 
             RTCIceServer stun = new RTCIceServer();
@@ -256,10 +266,12 @@ public final class HostMain {
         }
 
         @Override public void onConnectionChange(RTCPeerConnectionState s) {
+            debug(cid + " connection " + s);
             if (s == RTCPeerConnectionState.FAILED || s == RTCPeerConnectionState.CLOSED) close();
         }
 
         @Override public void onDataChannel(RTCDataChannel channel) {
+            debug(cid + " data channel arrived (" + channel.getState() + ")");
             dc = channel;
             channel.registerObserver(new RTCDataChannelObserver() {
                 public void onBufferedAmountChange(long previous) { }
@@ -282,9 +294,11 @@ public final class HostMain {
 
         volatile boolean piped;
         synchronized void startPipe() {
+            debug(cid + " channel open" + (piped ? " (already piped)" : "") + (closed ? " (already closed)" : ""));
             if (piped || closed) return;
             piped = true;
-            Thread t = new Thread(mods ? this::serveMods : this::pipe, mods ? "openhouse mods" : "openhouse player");
+            Runnable job = mods ? this::serveMods : openhouse.Version.same(theirVersion, openhouse.Version.VERSION) ? this::pipe : this::refuse;
+            Thread t = new Thread(job, mods ? "openhouse mods" : "openhouse player");
             t.setDaemon(true);
             t.start();
         }
@@ -297,7 +311,9 @@ public final class HostMain {
                     if (b.length == 0) break;
                     String cmd = new String(b, java.nio.charset.StandardCharsets.UTF_8).trim();
                     if (cmd.equals("LIST")) {
-                        sendText(shareJson == null ? "{\"mods\":[]}" : shareJson);
+
+                        String none = "{\"mods\":[],\"openhouse\":\"" + openhouse.Version.VERSION + "\"}";
+                        sendText(shareJson == null || theirVersion == null ? none : shareJson);
                     } else if (cmd.startsWith("GET ")) {
                         String sha = cmd.substring(4).trim();
                         java.io.File f = shareFiles.get(sha);
@@ -327,6 +343,30 @@ public final class HostMain {
             }
         }
 
+        void refuse() {
+            String v = openhouse.Version.VERSION;
+            String msg = theirVersion == null ? "This world uses OpenHouse " + v + ". Update OpenHouse to join."
+                    : openhouse.Version.compare(theirVersion, v) < 0 ? "This world uses OpenHouse " + v + " (you have " + openhouse.Version.base(theirVersion) + "). Update OpenHouse to join."
+                    : "This world uses OpenHouse " + v + " (you have " + openhouse.Version.base(theirVersion) + "). The host needs to update OpenHouse.";
+            log("turned away a player on " + (theirVersion == null ? "an older OpenHouse" : "OpenHouse " + theirVersion) + " - this room runs " + v);
+            try {
+                java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
+                java.io.DataOutputStream d = new java.io.DataOutputStream(b);
+                d.writeByte(255);
+                d.writeShort(msg.length());
+                d.write(msg.getBytes(java.nio.charset.StandardCharsets.UTF_16BE));
+                d.flush();
+                RTCDataChannel ch = dc;
+                if (ch != null) ch.send(new RTCDataChannelBuffer(ByteBuffer.wrap(b.toByteArray()), true));
+                long until = System.currentTimeMillis() + 3000;
+                while (!closed && System.currentTimeMillis() < until) Thread.sleep(50);
+            } catch (Exception e) {
+                if (!closed) log("couldn't tell a player why: " + e.getMessage());
+            } finally {
+                close();
+            }
+        }
+
         void sendText(String s) throws Exception {
             RTCDataChannel ch = dc;
             while (!closed && ch.getBufferedAmount() > MAX_BUFFERED) Thread.sleep(5);
@@ -339,6 +379,7 @@ public final class HostMain {
                 s.connect(new InetSocketAddress(targetHost, targetPort), 5000);
                 s.setTcpNoDelay(true);
                 tcp = s;
+                debug(cid + " piped to the server from port " + s.getLocalPort());
                 players();
 
                 Thread up = new Thread(() -> {
@@ -383,6 +424,7 @@ public final class HostMain {
                 if (closed) return;
                 closed = true;
             }
+            debug(cid + " closed" + (piped ? "" : " (never piped)"));
             peers.remove(cid, this);
             toServer.offer(new byte[0]);
             try { if (tcp != null) tcp.close(); } catch (IOException ignored) { }
