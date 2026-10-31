@@ -38,6 +38,15 @@ public final class LocalServer {
     public volatile List<String> leftOut = new ArrayList<>();
     private volatile boolean dying;
     volatile boolean announced;
+
+    public volatile String crash;
+    public volatile String crashMod;
+    volatile boolean crashShown;
+    private volatile List<ServerMods.Entry> serverMods = new ArrayList<>();
+
+    private final java.util.ArrayDeque<String> recent = new java.util.ArrayDeque<>();
+    private int forwarded;
+    private boolean inError;
     private volatile Process proc;
     private volatile OutputStream stdin;
     private final boolean online;
@@ -106,17 +115,58 @@ public final class LocalServer {
         detail = d == null ? "" : d;
     }
 
+    private final java.util.concurrent.CountDownLatch closed = new java.util.concurrent.CountDownLatch(1);
+
+    public void worldClosed() {
+        closed.countDown();
+    }
+
+    private static volatile Thread prefetch;
+
+    static synchronized void prefetch() {
+        if (prefetch != null || !supported()) return;
+        File lib = new File(OpenHouseMod.dataDir(), "lib");
+        Thread t = new Thread(() -> {
+            java.util.function.Consumer<String> status = s -> {
+                LocalServer c = current;
+                if (c != null && c.state == State.STARTING) c.detail = s;
+            };
+            try {
+                Rtc.btaServer(lib, status);
+                Rtc.libraries(lib, status);
+            } catch (Exception e) {
+
+                OpenHouseMod.LOG.info("couldn't fetch the server ahead of time: {}", e.getMessage());
+            }
+        }, "openhouse prefetch");
+        t.setDaemon(true);
+        prefetch = t;
+        t.start();
+    }
+
+    private static void awaitPrefetch() {
+        Thread t = prefetch;
+        if (t == null) return;
+        try { t.join(); } catch (InterruptedException ignored) { }
+    }
+
     private void run() {
         File base = OpenHouseMod.dataDir();
         File dir = new File(base, "server");
         try {
             set(State.STARTING, "Getting the server ready...");
+            awaitPrefetch();
             File serverJar = Rtc.btaServer(new File(base, "lib"), s -> detail = s);
             if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("can't create " + dir);
             File world = new File(FabricLoader.getInstance().getGameDir().toFile(), "saves" + File.separator + worldDir);
             if (!new File(world, "level.dat").isFile()) throw new IOException("can't find the world's save (" + world + ")");
             List<ServerMods.Entry> mods = ServerMods.loaded();
-            File share = shareManifest(mods, base, world);
+
+            File gate = new File(dir, "world-closed.flag");
+            File share = new File(base, "share-game.json");
+            if ((gate.exists() && !gate.delete()) || (share.exists() && !share.delete()))
+                throw new IOException("can't clear the last opening's files in " + base);
+            handOver(mods, base, world, gate);
 
             copyConfigs(new File(FabricLoader.getInstance().getGameDir().toFile(), "config"), new File(dir, "config"));
             Runtime.getRuntime().addShutdownHook(new Thread(() -> stopAndWait(30000), "openhouse local server stop"));
@@ -128,7 +178,8 @@ public final class LocalServer {
                 Set<String> leftIds = new LinkedHashSet<>();
                 for (ServerMods.Entry e : left) { leftNames.add(e.name); leftIds.add(e.id); }
                 leftOut = leftNames;
-                List<String> lines = runServer(serverJar, dir, world, ServerMods.sync(in), share);
+                serverMods = in;
+                List<String> lines = runServer(serverJar, dir, world, ServerMods.sync(in), share, gate);
                 if (lines == null) return;
 
                 try {
@@ -137,6 +188,7 @@ public final class LocalServer {
                 } catch (IOException ignored) { }
                 Set<String> bad = ServerMods.culprits(lines, in, leftIds);
                 if (bad.isEmpty() || attempt >= 15) {
+                    OpenHouseMod.LOG.warn("Open to Friends: the server for {} couldn't start (its errors are above) - everything it printed is in {}", worldDir, new File(dir, "console.log"));
                     set(State.FAILED, "The server couldn't start. See openhouse/server/console.log.");
                     return;
                 }
@@ -152,6 +204,27 @@ public final class LocalServer {
             if (state != State.STOPPING) set(State.FAILED, e.getMessage() == null ? e.toString() : e.getMessage());
             else set(State.STOPPED, "");
         }
+    }
+
+    private void handOver(List<ServerMods.Entry> mods, File base, File world, File gate) {
+        Thread t = new Thread(() -> {
+            try {
+                closed.await();
+            } catch (InterruptedException e) {
+                return;
+            }
+            shareManifest(mods, base, world);
+            try {
+                java.nio.file.Files.write(gate.toPath(), new byte[0]);
+            } catch (IOException e) {
+                OpenHouseMod.LOG.warn("Open to Friends: can't tell the server the world is saved ({})", e.toString());
+                set(State.FAILED, "Couldn't hand the world to the server: " + e.getMessage());
+                Process p = proc;
+                if (p != null) p.destroyForcibly();
+            }
+        }, "openhouse world hand-over");
+        t.setDaemon(true);
+        t.start();
     }
 
     static final java.util.regex.Pattern PRIVATE = java.util.regex.Pattern.compile("(?i)token|secret|passw|auth|account|credential|webhook|api.?key|session");
@@ -223,17 +296,19 @@ public final class LocalServer {
         }
     }
 
-    private List<String> runServer(File serverJar, File dir, File world, File modsDir, File share) throws Exception {
+    private List<String> runServer(File serverJar, File dir, File world, File modsDir, File share, File gate) throws Exception {
         {
             port = freePort();
             writeSettings(dir);
             List<String> cmd = new ArrayList<>();
             cmd.add(new File(new File(System.getProperty("java.home"), "bin"), "java").getAbsolutePath());
-            cmd.add("-Xmx1536M");
+            cmd.add("-Xmx" + serverHeapMb() + "M");
 
             cmd.add("-Djava.awt.headless=true");
             cmd.add("-Dfabric.modsFolder=" + modsDir.getAbsolutePath());
-            if (share != null) cmd.add("-Dopenhouse.shareManifest=" + share.getAbsolutePath());
+
+            cmd.add("-Dopenhouse.shareManifest=" + share.getAbsolutePath());
+            cmd.add("-Dopenhouse.worldGate=" + gate.getAbsolutePath());
             cmd.add("-Dopenhouse.lan=1");
             cmd.add("-Dopenhouse.dataDir=" + OpenHouseMod.dataDir().getAbsolutePath());
             cmd.add("-Dopenhouse.parentPid=" + ProcessHandle.current().pid());
@@ -260,12 +335,17 @@ public final class LocalServer {
 
             List<String> lines = new ArrayList<>();
             dying = false;
+            recent.clear();
+            inError = false;
             try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
                  PrintWriter console = new PrintWriter(new OutputStreamWriter(new FileOutputStream(new File(dir, "console.log")), StandardCharsets.UTF_8), true)) {
                 String line;
                 while ((line = r.readLine()) != null) {
                     console.println(line);
                     if (state == State.STARTING && lines.size() < 20000) lines.add(line);
+                    recent.addLast(line);
+                    if (recent.size() > 400) recent.removeFirst();
+                    forward(line);
 
                     if (state == State.STARTING && !dying && (line.contains("Failed to start the minecraft server")
                             || line.contains("A mod crashed on startup") || line.contains("Exception in thread \"main\""))) {
@@ -282,21 +362,64 @@ public final class LocalServer {
             }
             int exit = p.waitFor();
             if (state == State.STOPPING) { set(State.STOPPED, ""); return null; }
+            if (state == State.FAILED) return null;
             if (state == State.STARTING) return lines;
-            set(State.FAILED, "The server stopped unexpectedly (exit " + exit + "). See openhouse/server/console.log.");
+
+            OpenHouseMod.LOG.warn("Open to Friends: the server for {} stopped unexpectedly (exit {}){} - everything it printed is in {}", worldDir, exit,
+                    crash != null ? " after " + crash : "", new File(dir, "console.log"));
+            set(State.FAILED, crash != null ? crash : "The server stopped unexpectedly (exit " + exit + "). See openhouse/server/console.log.");
             return null;
         }
     }
 
+    private void forward(String line) {
+        boolean header = line.startsWith("[") && line.contains("]: ");
+        if (header) inError = line.contains("/ERROR]") || line.contains("/FATAL]");
+        else if (line.startsWith("Exception in thread ")) inError = true;
+
+        if (line.startsWith(ServerRoom.CRASH_MARKER)) return;
+        if (!inError || forwarded > 600) return;
+        if (++forwarded > 600) {
+            OpenHouseMod.LOG.warn("[world server] (more errors - see openhouse/server/console.log)");
+            return;
+        }
+        OpenHouseMod.LOG.warn("[world server] {}", line);
+    }
+
+    private void crashed(String what) {
+        if (state != State.READY || crash != null) return;
+        String mod = null;
+        try {
+
+            List<String> tail = new ArrayList<>(recent);
+            int from = 0;
+            for (int k = tail.size() - 1; k >= 0; k--) if (tail.get(k).contains("/ERROR]")) { from = k; break; }
+            String id = ServerMods.crashMod(tail.subList(from, tail.size()), serverMods);
+            if (id != null) for (ServerMods.Entry e : serverMods) if (e.id.equals(id)) mod = e.name;
+        } catch (Throwable t) {
+            OpenHouseMod.LOG.warn("couldn't tell which mod the server crashed in: {}", t.toString());
+        }
+        crashMod = mod;
+        crash = what;
+        OpenHouseMod.LOG.warn("Open to Friends: the server for {} crashed{}: {}", worldDir, mod != null ? " in " + mod : "", what);
+    }
+
     private void onLine(String line) {
         int i;
-        if ((i = line.indexOf(ServerRoom.ROOM_MARKER)) >= 0) {
+        if ((i = line.indexOf(ServerRoom.CRASH_MARKER)) >= 0) {
+            crashed(line.substring(i + ServerRoom.CRASH_MARKER.length()).trim());
+        } else if ((i = line.indexOf(ServerRoom.ROOM_MARKER)) >= 0) {
 
             String c = Rtc.normalizeCode(line.substring(i + ServerRoom.ROOM_MARKER.length()).trim());
             if (c != null) code = c;
             else OpenHouseMod.LOG.warn("not a room code in the server's output: {}", line);
         } else if ((i = line.indexOf("Preparing spawn area: ")) >= 0 && state == State.STARTING) {
             detail = "Preparing the world... " + line.substring(i + "Preparing spawn area: ".length()).trim();
+        } else if (state == State.STARTING && !detail.startsWith("Leaving out") && (i = line.indexOf("Loading ")) >= 0 && line.endsWith(" mods:")) {
+
+            detail = "Loading " + line.substring(i + 8, line.length() - 1).trim() + "...";
+        } else if (state == State.STARTING && line.contains("Preparing level \"")) {
+            detail = "Opening the world...";
         } else if (line.contains("Done (") && line.contains("For help")) {
             if (state == State.STARTING) set(State.READY, "");
         } else if (line.contains("FAILED TO BIND")) {
@@ -331,6 +454,15 @@ public final class LocalServer {
         String prop = System.getProperty("fabric.modsFolder");
         if (prop != null && !prop.isEmpty()) return new File(prop);
         return new File(FabricLoader.getInstance().getGameDir().toFile(), "mods");
+    }
+
+    static int serverHeapMb() {
+        long phys = 0;
+        try {
+            phys = ((com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory.getOperatingSystemMXBean()).getTotalMemorySize();
+        } catch (Throwable ignored) { }
+        long mb = phys / 4 / (1024 * 1024);
+        return (int) Math.max(1536, Math.min(4096, mb));
     }
 
     static List<File> loaderClasspath() {

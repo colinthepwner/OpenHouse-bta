@@ -108,8 +108,13 @@ public abstract class ScreenPauseMixin {
             }
 
             mc.statsCounter.add(StatList.leaveGameStat, 1);
-            mc.changeWorld(null);
-            mc.displayScreen(new ScreenOpenToFriends(LocalServer.start(mc, world), false));
+            LocalServer ls = LocalServer.start(mc, world);
+            try {
+                mc.changeWorld(null);
+            } finally {
+                ls.worldClosed();
+            }
+            mc.displayScreen(new ScreenOpenToFriends(ls, false));
         } else if (button.id == COPY) {
             ci.cancel();
             LocalServer ls = LocalServer.current();

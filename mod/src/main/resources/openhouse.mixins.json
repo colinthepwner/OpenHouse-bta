@@ -17,6 +17,7 @@
     "MobRendererPlayerMixin",
     "GetSkinUrlThreadMixin",
     "PacketHandlerClientMixin",
+    "DataLoaderMixin",
     "HalpLibeConfigMixin",
     "RichPresenceMixin"
   ],

@@ -88,7 +88,21 @@ public final class Rtc {
         return fetchPinned(dir, BTA_SERVER_URL, "bta-server-" + BTA_SERVER_VERSION + ".jar", BTA_SERVER_SHA256, "the BTA server", status);
     }
 
+    private static final java.util.Map<String, Object> FETCHING = new java.util.HashMap<String, Object>();
+
     static File fetchPinned(File dir, String url, String name, String want, String what, Consumer<String> status) throws IOException {
+        Object lock;
+        synchronized (FETCHING) {
+            String k = new File(dir, name).getAbsolutePath();
+            lock = FETCHING.get(k);
+            if (lock == null) { lock = new Object(); FETCHING.put(k, lock); }
+        }
+        synchronized (lock) {
+            return fetchPinnedNow(dir, url, name, want, what, status);
+        }
+    }
+
+    private static File fetchPinnedNow(File dir, String url, String name, String want, String what, Consumer<String> status) throws IOException {
         File f = new File(dir, name);
         if (f.isFile() && want.equals(sha256(f))) return f;
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("can't create " + dir);
