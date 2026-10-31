@@ -80,14 +80,56 @@ public final class ServerRoom {
         startHost();
     }
 
+    public static void waitForWorld() {
+        String gate = System.getProperty("openhouse.worldGate");
+        if (!LAN || gate == null || gate.isEmpty()) return;
+        File f = new File(gate);
+        if (f.isFile()) return;
+        LOG.info("waiting for the host's game to finish saving the world");
+        ProcessHandle parent = null;
+        try { parent = ProcessHandle.of(Long.parseLong(System.getProperty("openhouse.parentPid", ""))).orElse(null); } catch (Exception ignored) { }
+        long until = System.currentTimeMillis() + 10 * 60 * 1000L;
+        boolean interrupted = false;
+        while (!f.isFile()) {
+            if ((parent != null && !parent.isAlive()) || System.currentTimeMillis() > until) {
+                LOG.warn("the host's game never finished closing the world - stopping without opening it");
+
+                Runtime.getRuntime().halt(0);
+            }
+
+            try { Thread.sleep(50); } catch (InterruptedException e) { interrupted = true; }
+        }
+        if (interrupted) Thread.currentThread().interrupt();
+        LOG.info("the world is saved - opening it");
+    }
+
+    private volatile String crash;
+    public static final String CRASH_MARKER = "OPENHOUSE CRASHED ";
+
+    public static volatile Throwable lastTickError;
+
+    public void crashed(Throwable t) {
+        if (!LAN || crash != null) return;
+        String s = t == null ? "an error" : t.toString();
+
+        s = s.replace('\n', ' ').replace('\r', ' ');
+        if (s.length() > 200) s = s.substring(0, 200) + "...";
+        crash = s;
+        System.out.println(CRASH_MARKER + s);
+        System.out.flush();
+    }
+
     public synchronized void serverStopping() {
 
         if (LAN) {
             MinecraftServer server = MinecraftServer.getInstance();
+
+            String c = crash;
+            String why = c == null ? "The host closed their world." : "The world crashed (" + shortName(c) + ").";
             try {
                 if (server != null && server.playerList != null)
                     for (net.minecraft.server.entity.player.PlayerServer p : new java.util.ArrayList<>(server.playerList.playerEntities))
-                        p.playerNetServerHandler.kickPlayer("The host closed their world.");
+                        p.playerNetServerHandler.kickPlayer(why);
             } catch (Throwable t) {
                 LOG.warn("couldn't tell players the world is closing: {}", t.toString());
             }
@@ -100,6 +142,14 @@ public final class ServerRoom {
             return;
         }
         stopHost();
+    }
+
+    static String shortName(String throwable) {
+        int colon = throwable.indexOf(':');
+        String cls = colon >= 0 ? throwable.substring(0, colon) : throwable;
+        int dot = cls.lastIndexOf('.');
+        cls = dot >= 0 ? cls.substring(dot + 1) : cls;
+        return cls.length() > 60 ? cls.substring(0, 60) : cls;
     }
 
     synchronized void startHost() {

@@ -70,7 +70,14 @@ public final class OpenHouseMod implements ClientModInitializer {
             }
         }
 
+        if (mc.currentWorld != null && !mc.isMultiplayerWorld()) LocalServer.prefetch();
+
         LocalServer ls = LocalServer.current();
+
+        if (ls != null && ls.crash != null && !ls.crashShown && mc.currentScreen instanceof net.minecraft.client.gui.ScreenConnectFailed) {
+            ls.crashShown = true;
+            mc.displayScreen(new ScreenOpenToFriends(ls, false));
+        }
         if (ls != null && ls.code != null && !ls.announced && LocalServer.hosting() && mc.thePlayer != null && mc.isMultiplayerWorld() && mc.hudIngame != null) {
             ls.announced = true;
             mc.hudIngame.addChatMessage(I18n.getInstance().translateKeyAndFormat("gui.openhouse.lan.announce", ls.code));

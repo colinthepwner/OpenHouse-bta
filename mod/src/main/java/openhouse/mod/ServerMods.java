@@ -179,6 +179,31 @@ public final class ServerMods {
         return null;
     }
 
+    static final Pattern FRAME_METHOD = Pattern.compile("^\\s*at (?:[^/\\s]+//)?([A-Za-z0-9_$.]+)\\.([A-Za-z0-9_$<>]+)\\(");
+    static final Pattern HANDLER = Pattern.compile("^[a-zA-Z]+\\$[a-z]{3}\\d{3}\\$([A-Za-z0-9_\\-]+)\\$");
+
+    static String crashMod(List<String> lines, List<Entry> in) {
+        if (lines.isEmpty() || in.isEmpty()) return null;
+        Set<String> ids = new HashSet<>();
+        for (Entry e : in) ids.add(e.id);
+        int root = 0;
+        for (int i = 0; i < lines.size(); i++) if (lines.get(i).trim().startsWith("Caused by:")) root = i;
+        Map<String, String> classToMod = null;
+        for (int i = root; i < lines.size(); i++) {
+            Matcher m = FRAME_METHOD.matcher(lines.get(i));
+            if (!m.find()) continue;
+            String cls = m.group(1);
+            Matcher h = HANDLER.matcher(m.group(2));
+            if (h.find() && ids.contains(h.group(1))) return h.group(1);
+            if (cls.startsWith("java.") || cls.startsWith("jdk.") || cls.startsWith("sun.") || cls.startsWith("net.minecraft.")
+                    || cls.startsWith("net.fabricmc.") || cls.startsWith("org.spongepowered.") || cls.startsWith("com.llamalad7.")) continue;
+            if (classToMod == null) classToMod = classIndex(in);
+            String id = classToMod.get(cls.replace('.', '/'));
+            if (id != null) return id;
+        }
+        return null;
+    }
+
     static Map<String, String> classIndex(List<Entry> in) {
         Map<String, String> out = new HashMap<>();
         for (Entry e : in) {
