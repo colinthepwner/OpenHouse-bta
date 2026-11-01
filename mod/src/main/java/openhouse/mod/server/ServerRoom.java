@@ -254,6 +254,8 @@ public final class ServerRoom {
 
     private static final java.util.Map<String, Boolean> ACCOUNTS = new java.util.concurrent.ConcurrentHashMap<>();
 
+    private static final java.util.Map<String, String> ACCOUNT_IDS = new java.util.concurrent.ConcurrentHashMap<>();
+
     public static Boolean mojangAccount(String name) {
         if (!name.matches("[A-Za-z0-9_]{3,16}")) return Boolean.FALSE;
         String key = name.toLowerCase(java.util.Locale.ROOT);
@@ -267,6 +269,17 @@ public final class ServerRoom {
             c.setRequestProperty("User-Agent", "OpenHouse/" + openhouse.Version.VERSION);
             int code = c.getResponseCode();
             Boolean result = code == 200 ? Boolean.TRUE : code == 404 ? Boolean.FALSE : null;
+            if (code == 200) {
+                String body;
+                try (java.io.InputStream in = c.getInputStream()) {
+                    body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                }
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"id\"\\s*:\\s*\"([0-9a-fA-F]{32})\"").matcher(body);
+                if (m.find()) {
+                    String h = m.group(1).toLowerCase(java.util.Locale.ROOT);
+                    ACCOUNT_IDS.put(key, h.substring(0, 8) + "-" + h.substring(8, 12) + "-" + h.substring(12, 16) + "-" + h.substring(16, 20) + "-" + h.substring(20));
+                }
+            }
             if (result != null) ACCOUNTS.put(key, result);
             else LOG.info("Mojang's name lookup answered {} for {} - keeping the account check", code, name);
             return result;
@@ -274,6 +287,31 @@ public final class ServerRoom {
             LOG.info("couldn't ask Mojang whether {} is an account ({}) - keeping the account check", name, e.toString());
             return null;
         }
+    }
+
+    public static boolean playedHere(String name) {
+        String id = ACCOUNT_IDS.get(name.toLowerCase(java.util.Locale.ROOT));
+        File dir = playersDir();
+        if (id == null || dir == null) return true;
+        return new File(dir, id + ".dat").exists() || new File(dir, name + ".dat").exists();
+    }
+
+    private static File playersDir() {
+        try {
+            MinecraftServer server = MinecraftServer.getInstance();
+            Object st = server == null || server.getDimensionWorld(0) == null ? null : server.getDimensionWorld(0).getLevelStorage();
+            for (Class<?> k = st == null ? null : st.getClass(); k != null; k = k.getSuperclass()) {
+                try {
+                    java.lang.reflect.Field f = k.getDeclaredField("playersDirectory");
+                    f.setAccessible(true);
+                    Object v = f.get(st);
+                    return v instanceof File ? (File) v : null;
+                } catch (NoSuchFieldException ignored) { }
+            }
+        } catch (Exception e) {
+            LOG.info("couldn't find the world's players folder ({})", e.toString());
+        }
+        return null;
     }
 
     private void updateInBackground() {

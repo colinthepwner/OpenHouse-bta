@@ -49,10 +49,12 @@ public abstract class PacketHandlerLoginMixin implements LoginFlags {
         PacketLogin p = openhouse$checking;
         if (!ServerRoom.LAN || p == null || p.username == null) return false;
         Boolean account = ServerRoom.mojangAccount(p.username);
-        if (account == null || account) return false;
+        if (account == null) return false;
+        if (account && ServerRoom.playedHere(p.username)) return false;
         if (p.uuid == null) p.uuid = new java.util.UUID(0, 0);
         openhouse$noAccount = true;
-        ServerRoom.LOG.info("{} has no Minecraft account - letting them in without the account check", p.username);
+        if (account) ServerRoom.LOG.info("{} is a Minecraft account that has never played in this world - letting this player in under the name, without the account", p.username);
+        else ServerRoom.LOG.info("{} has no Minecraft account - letting them in without the account check", p.username);
         return true;
     }
 

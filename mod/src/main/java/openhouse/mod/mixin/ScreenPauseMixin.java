@@ -35,7 +35,7 @@ public abstract class ScreenPauseMixin {
             }
             s.buttons.add(b);
         } else if (LocalServer.hosting() && s.mc.isMultiplayerWorld()) {
-            s.buttons.add(new ButtonElement(CODE, x, y, 200 - ICON - 2, 20, codeLabel(false)));
+            s.buttons.add(new ButtonElement(CODE, x, y, 200 - ICON - 2, 20, codeLabel(s.mc, 200 - ICON - 2)));
             s.buttons.add(new ButtonElement(COPY, x + 200 - ICON, y, ICON, 20, ""));
             for (ButtonElement b : s.buttons) if (b.id == 1) b.displayString = t.translateKey("gui.openhouse.lan.button.close");
         }
@@ -46,7 +46,7 @@ public abstract class ScreenPauseMixin {
     private void openhouse$render(int mx, int my, float partialTick, CallbackInfo ci) {
         openhouse$layout();
         Screen s = (Screen) (Object) this;
-        for (ButtonElement b : s.buttons) if (b.id == CODE) b.displayString = codeLabel(b.width < 150);
+        for (ButtonElement b : s.buttons) if (b.id == CODE) b.displayString = codeLabel(s.mc, b.width);
     }
 
     @Inject(method = "render", at = @At("TAIL"))
@@ -80,20 +80,26 @@ public abstract class ScreenPauseMixin {
             ours.width = copy != null ? 98 - ICON - 2 : 98;
             ours.xPosition = s.width / 2 + 2;
             if (copy != null) copy.xPosition = s.width / 2 + 2 + 98 - ICON;
-            if (ours.id == CODE) ours.displayString = codeLabel(true);
+            if (ours.id == CODE) ours.displayString = codeLabel(s.mc, ours.width);
             return;
         }
     }
 
-    private static String codeLabel(boolean half) {
+    private static String codeLabel(Minecraft mc, int width) {
         I18n t = I18n.getInstance();
         LocalServer ls = LocalServer.current();
         String code = ls == null ? null : ls.code;
-        if (code == null) return t.translateKey(half ? "gui.openhouse.lan.button.nocode.short" : "gui.openhouse.lan.button.nocode");
+        String[] tries;
+        if (code == null) tries = new String[] { t.translateKey("gui.openhouse.lan.button.nocode"), t.translateKey("gui.openhouse.lan.button.nocode.short") };
+        else {
 
-        boolean pub = openhouse.mod.OpenHouseDiscord.shareCode;
-        return t.translateKeyAndFormat(half ? (pub ? "gui.openhouse.lan.button.code.short.public" : "gui.openhouse.lan.button.code.short")
-                : (pub ? "gui.openhouse.lan.button.code.public" : "gui.openhouse.lan.button.code"), code);
+            boolean pub = openhouse.mod.OpenHouseDiscord.shareCode;
+            tries = new String[] { t.translateKeyAndFormat(pub ? "gui.openhouse.lan.button.code.public" : "gui.openhouse.lan.button.code", code),
+                    t.translateKeyAndFormat(pub ? "gui.openhouse.lan.button.code.short.public" : "gui.openhouse.lan.button.code.short", code), code };
+        }
+
+        for (String l : tries) if (mc == null || mc.font == null || mc.font.stringWidth(l) <= width - 8) return l;
+        return tries[tries.length - 1];
     }
 
     @Inject(method = "buttonClicked", at = @At("HEAD"), cancellable = true)

@@ -42,6 +42,9 @@ public final class LocalServer {
     public volatile String crash;
     public volatile String crashMod;
     volatile boolean crashShown;
+
+    volatile boolean hostIn;
+    volatile boolean hostLeft;
     private volatile List<ServerMods.Entry> serverMods = new ArrayList<>();
 
     private final java.util.ArrayDeque<String> recent = new java.util.ArrayDeque<>();
@@ -387,7 +390,7 @@ public final class LocalServer {
     }
 
     private void crashed(String what) {
-        if (state != State.READY || crash != null) return;
+        if (crash != null || !(state == State.READY || (state == State.STOPPING && hostLeft))) return;
         String mod = null;
         try {
 
@@ -427,6 +430,14 @@ public final class LocalServer {
         } else if (line.contains("Incompatible mods found") || line.contains("Exception in thread \"main\"")) {
             if (state == State.STARTING) detail = "The server hit a problem with your mods - see openhouse/server/console.log";
         }
+    }
+
+    boolean hostDisconnected() {
+        if (state != State.READY) return false;
+        hostLeft = true;
+        OpenHouseMod.LOG.info("Open to Friends: this game's connection to {} ended - closing the world", worldDir);
+        stop();
+        return true;
     }
 
     public void stop() {
