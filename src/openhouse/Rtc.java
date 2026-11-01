@@ -222,6 +222,15 @@ public final class Rtc {
         throw new IOException("can't find the OpenHouse jar on disk to start WebRTC with");
     }
 
+    static int javaMajor() {
+        String v = System.getProperty("java.specification.version", "");
+        try {
+            return v.startsWith("1.") ? Integer.parseInt(v.substring(2)) : Integer.parseInt(v.split("\\.")[0]);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
     public static Process start(File self, List<File> libs, String mainClass, List<String> args) throws IOException {
         StringBuilder cp = new StringBuilder(self.getAbsolutePath());
         for (File f : libs) cp.append(File.pathSeparator).append(f.getAbsolutePath());
@@ -229,6 +238,8 @@ public final class Rtc {
         List<String> cmd = new ArrayList<>();
         cmd.add(java);
         cmd.add("-Xmx128m");
+
+        if (javaMajor() >= 17) cmd.add("--enable-native-access=ALL-UNNAMED");
 
         cmd.add("-Djava.awt.headless=true");
         cmd.add("-cp");

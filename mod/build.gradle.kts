@@ -65,6 +65,8 @@ sourceSets {
 	main {
 		java.srcDir("../src")
 	}
+
+	create("boot")
 }
 java {
 	toolchain {
@@ -114,7 +116,16 @@ tasks {
 			}
 		}
 
-		if (name != "sourcesJar") manifest { attributes("Main-Class" to "openhouse.mod.OpenHost") }
+		if (name != "sourcesJar") manifest { attributes("Main-Class" to "openhouse.boot.OpenHostBoot") }
+	}
+
+	named<JavaCompile>("compileBootJava") {
+		sourceCompatibility = "1.8"
+		targetCompatibility = "1.8"
+		options.release = 8
+	}
+	named<Jar>("jar") {
+		from(sourceSets["boot"].output)
 	}
 
 	named<AbstractArchiveTask>("jar") {
