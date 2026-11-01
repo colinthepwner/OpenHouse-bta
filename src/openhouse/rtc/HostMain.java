@@ -132,22 +132,36 @@ public final class HostMain {
             }
             if (idTaken[0]) {
 
-                if (++taken >= 4) { code = newCode(); taken = 0; log("code was taken, using a new one"); }
+                synchronized (System.out) { System.out.println("TAKEN " + code); System.out.flush(); }
+                if (!openhouse.Rtc.isPicked(code) && ++taken >= 4) { code = newCode(); taken = 0; log("code was taken, using a new one"); }
             } else taken = 0;
             Thread.sleep(idTaken[0] ? 15000 : 5000);
         }
     }
 
     static boolean validCode(String c) {
-        if (c == null || c.length() != 5) return false;
-        for (int k = 0; k < 5; k++) if (ALPHABET.indexOf(c.charAt(k)) < 0) return false;
-        return true;
+        return c != null && c.equals(openhouse.Rtc.normalizeCode(c));
     }
 
     static String newCode() {
         StringBuilder b = new StringBuilder();
         for (int k = 0; k < 5; k++) b.append(ALPHABET.charAt(rnd.nextInt(ALPHABET.length())));
         return b.toString();
+    }
+
+    static final Map<String, Long> MISMATCH_SAID = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static void mismatch(String remote, String theirs) {
+        long now = System.currentTimeMillis();
+        Long last = MISMATCH_SAID.put(remote == null ? "" : remote, now);
+        if (last != null && now - last < 60000) return;
+        String v = openhouse.Version.VERSION;
+        String line = theirs == null
+                ? "A player tried to join with an old OpenHouse (before 1.0.2) - this server runs " + v + ", so they were asked to update."
+                : openhouse.Version.compare(theirs, v) < 0
+                ? "A player tried to join with OpenHouse " + openhouse.Version.base(theirs) + ", older than this server's " + v + " - they were asked to update."
+                : "A player tried to join with OpenHouse " + openhouse.Version.base(theirs) + ", newer than this server's " + v + " - update this server to let them in.";
+        synchronized (System.out) { System.out.println("WARN " + line); System.out.flush(); }
     }
 
     static void sendSignal(Map<String, Object> m) {
@@ -195,7 +209,8 @@ public final class HostMain {
         } else if ("ERROR".equals(type)) {
             log("matchmaking server error: " + (payload != null ? payload.get("msg") : ""));
         } else if ("ID-TAKEN".equals(type)) {
-            log("room code " + code + " is still registered elsewhere");
+
+            debug("room code " + code + " is still registered elsewhere");
         }
     }
 
@@ -312,6 +327,8 @@ public final class HostMain {
                     String cmd = new String(b, java.nio.charset.StandardCharsets.UTF_8).trim();
                     if (cmd.equals("LIST")) {
 
+                        if (!openhouse.Version.same(theirVersion, openhouse.Version.VERSION)) mismatch(remote, theirVersion);
+
                         String none = "{\"mods\":[],\"openhouse\":\"" + openhouse.Version.VERSION + "\"}";
                         sendText(shareJson == null || theirVersion == null ? none : shareJson);
                     } else if (cmd.startsWith("GET ")) {
@@ -348,7 +365,7 @@ public final class HostMain {
             String msg = theirVersion == null ? "This world uses OpenHouse " + v + ". Update OpenHouse to join."
                     : openhouse.Version.compare(theirVersion, v) < 0 ? "This world uses OpenHouse " + v + " (you have " + openhouse.Version.base(theirVersion) + "). Update OpenHouse to join."
                     : "This world uses OpenHouse " + v + " (you have " + openhouse.Version.base(theirVersion) + "). The host needs to update OpenHouse.";
-            log("turned away a player on " + (theirVersion == null ? "an older OpenHouse" : "OpenHouse " + theirVersion) + " - this room runs " + v);
+            mismatch(remote, theirVersion);
             try {
                 java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
                 java.io.DataOutputStream d = new java.io.DataOutputStream(b);

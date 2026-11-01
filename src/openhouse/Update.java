@@ -50,11 +50,21 @@ public final class Update {
     }
 
     public static Release latestHelper() throws IOException {
+        return latestAsset(HELPER_ASSET, "the newest release has no helper");
+    }
+
+    public static final String OPENHOST_ASSET = "OpenHost.jar";
+
+    public static Release latestOpenHost() throws IOException {
+        return latestAsset(OPENHOST_ASSET, "the newest release has no OpenHost.jar");
+    }
+
+    static Release latestAsset(String name, String missing) throws IOException {
         Map<String, Object> root = latest();
         String version = Version.base(Json.str(root.get("tag_name")));
         for (Map<String, Object> a : assets(root))
-            if (HELPER_ASSET.equals(Json.str(a.get("name")))) return release(version, a);
-        throw new IOException("the newest release has no helper");
+            if (name.equals(Json.str(a.get("name")))) return release(version, a);
+        throw new IOException(missing);
     }
 
     static Map<String, Object> latest() throws IOException {

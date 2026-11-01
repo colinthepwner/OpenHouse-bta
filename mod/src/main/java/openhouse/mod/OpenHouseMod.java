@@ -75,6 +75,17 @@ public final class OpenHouseMod implements ClientModInitializer {
 
         LocalServer ls = LocalServer.current();
 
+        if (mc.currentScreen instanceof net.minecraft.client.gui.ScreenConnectFailed && mc.currentScreen != passwordHandled) {
+            String[] why = disconnectReason(mc.currentScreen);
+            String target = connectTarget;
+            if (why != null && target != null && (openhouse.RoomPassword.NEEDED.equals(why[1]) || openhouse.RoomPassword.WRONG.equals(why[1]))) {
+                passwordHandled = mc.currentScreen;
+                boolean wrong = openhouse.RoomPassword.WRONG.equals(why[1]);
+                if (wrong) PasswordStore.forget(target);
+                LOG.info("{} wants a password{}", target, wrong ? " (the one sent was wrong)" : "");
+                mc.displayScreen(new ScreenPassword(target, connectRoom, connectHost, connectPort, wrong));
+            }
+        }
         if (ls != null && ls.crash != null && !ls.crashShown && mc.currentScreen instanceof net.minecraft.client.gui.ScreenConnectFailed) {
             ls.crashShown = true;
             mc.displayScreen(new ScreenOpenToFriends(ls, false));
@@ -141,7 +152,27 @@ public final class OpenHouseMod implements ClientModInitializer {
     public static void connectingTo(String host, int port) {
         connectHost = host;
         connectPort = port;
+        connectTarget = targetFor(host, port);
+        Joiner j = joiner;
+        connectRoom = connectTarget.startsWith("room:") && j != null ? j.code : null;
     }
+
+    static volatile String connectTarget, connectRoom;
+
+    public static String targetFor(String host, int port) {
+        Joiner j = joiner;
+        String h = host == null ? "" : host.trim().toLowerCase(java.util.Locale.ROOT);
+        boolean loopback = h.equals("127.0.0.1") || h.equals("localhost") || h.equals("::1") || h.equals("[::1]");
+        if (loopback && j != null && j.port > 0 && port == j.port) return "room:" + j.code;
+        return "server:" + h + ":" + port;
+    }
+
+    public static String handshakeName(String target, String name) {
+        byte[] key = PasswordStore.get(target);
+        return key == null || name == null ? name : openhouse.RoomPassword.proof(key, name);
+    }
+
+    private static Screen passwordHandled;
 
     static boolean connectingToOwnWorld() {
         return LocalServer.hostToken(connectHost, connectPort) != null;

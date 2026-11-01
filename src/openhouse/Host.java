@@ -25,6 +25,11 @@ public final class Host {
 
     public volatile int players;
 
+    public volatile Consumer<String> onTaken;
+
+    public volatile Consumer<String> onWarn;
+    private boolean takenSaid;
+
     public Host(File dataDir, String code, String token, String target, Consumer<String> log, Saver saver) {
         this(dataDir, code, token, target, null, log, saver);
     }
@@ -68,11 +73,20 @@ public final class Host {
                     if (line.startsWith("ROOM ")) {
                         String c = line.substring(5).trim();
                         if (!c.equals(code)) code = c;
+                        takenSaid = false;
                         saver.save(c, token);
                         log.accept("Room code: " + c + "   (players: Multiplayer > Room Code, or the OpenHouse helper)");
+                    } else if (line.startsWith("TAKEN ")) {
+                        String c = line.substring(6).trim();
+                        Consumer<String> t = onTaken;
+                        if (t != null) t.accept(c);
+                        else if (!takenSaid) { takenSaid = true; log.accept("room code " + c + " is in use by another server - waiting for it to come free"); }
                     } else if (line.startsWith("PLAYERS ")) {
                         players = Integer.parseInt(line.substring(8).trim());
                         log.accept(players + (players == 1 ? " player" : " players") + " connected by room code");
+                    } else if (line.startsWith("WARN ")) {
+                        Consumer<String> w = onWarn;
+                        (w != null ? w : log).accept(line.substring(5));
                     } else if (line.startsWith("LOG ")) {
                         log.accept(line.substring(4));
                     } else if (!line.trim().isEmpty()) {

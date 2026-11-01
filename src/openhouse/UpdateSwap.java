@@ -98,7 +98,7 @@ public final class UpdateSwap {
         }
     }
 
-    static boolean isOpenHouseMod(File jar) {
+    public static boolean isOpenHouseMod(File jar) {
         try (ZipFile z = new ZipFile(jar)) {
             ZipEntry e = z.getEntry("fabric.mod.json");
             if (e == null) return false;

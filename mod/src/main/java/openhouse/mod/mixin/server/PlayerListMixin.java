@@ -29,6 +29,7 @@ public abstract class PlayerListMixin {
         if (f.openhouse$isHost()) {
             openhouse$hostName = name;
             openhouse$hostId = uuid;
+            ServerRoom.lanHostName = name;
             return;
         }
         MinecraftServer server = MinecraftServer.getInstance();

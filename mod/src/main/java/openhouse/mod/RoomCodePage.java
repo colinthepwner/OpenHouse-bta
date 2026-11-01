@@ -25,6 +25,11 @@ public final class RoomCodePage {
         return page;
     }
 
+    public static net.minecraft.core.item.ItemStack icon() {
+        Page p = page;
+        return p == null ? null : p.getIcon();
+    }
+
     public static void refresh(ScreenSelectServer screen) {
         Page p = page();
         p.clearComponents();
@@ -42,7 +47,7 @@ public final class RoomCodePage {
             I18n t = I18n.getInstance();
             codeField = new TextFieldElement(screen, screen.fontRenderer, 0, 0, 150, 18, OpenHouseMod.typed == null ? "" : OpenHouseMod.typed, "");
 
-            codeField.setMaxStringLength(9);
+            codeField.setMaxStringLength(Rtc.PICKED_MAX + 4);
 
             codeField.setFocused(true);
             joinButton = new ButtonElement(0, 0, 0, 150, 20, t.translateKey("gui.openhouse.button.join"));

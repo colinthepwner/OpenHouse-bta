@@ -45,7 +45,7 @@ public final class Main {
         if (cmd.equals("join") && rest.size() >= 2) {
             join(dir, rest.get(1), rest.size() > 2 ? Integer.parseInt(rest.get(2)) : 0, mcre, relay);
         } else if (cmd.equals("host")) {
-            host(dir, rest.size() > 1 ? rest.get(1) : "localhost:25565", mcre);
+            host(dir, rest.size() > 1 ? rest.get(1) : "localhost:25565", rest.size() > 2 ? rest.get(2) : null, mcre);
         } else {
             usage();
             System.exit(2);
@@ -55,7 +55,9 @@ public final class Main {
     static void usage() {
         System.out.println("OpenHouse helper - join and host Better than Adventure servers by room code\n"
                 + "  java -jar openhouse-helper.jar join <CODE>      join a room, then Direct Connect to the address it shows\n"
-                + "  java -jar openhouse-helper.jar host [address]   give your server a room code (default localhost:25565)\n"
+                + "  java -jar openhouse-helper.jar host [address] [code]\n"
+                + "                                                  give your server a room code (default localhost:25565);\n"
+                + "                                                  a code of your own (6-16 letters/digits) stays, else it's new each start\n"
                 + "  java -jar openhouse-helper.jar                  open the join window");
     }
 
@@ -115,7 +117,7 @@ public final class Main {
     static void join(File dir, String typed, int port, boolean mcre, boolean relay) throws Exception {
         String code = Rtc.normalizeCode(typed);
         if (code == null) {
-            say("\"" + typed + "\" isn't a room code - codes are 5 letters/digits, like K7QXD (no 0, 1, I or O).");
+            say("\"" + typed + "\" isn't a room code - codes are 5 letters/digits like K7QXD (no 0, 1, I or O), or a server's own name of 6-16 letters/digits.");
             System.exit(2);
         }
         final Object done = new Object();
@@ -168,7 +170,7 @@ public final class Main {
 
     private static final String[] lastDetail = { "" };
 
-    static void host(File dir, String address, boolean mcre) throws Exception {
+    static void host(File dir, String address, String typedCode, boolean mcre) throws Exception {
         if (mcre) {
             say("(--mcre is for joining only; hosting for MCRE is the MCRE bridge's job)");
             System.exit(2);
@@ -178,8 +180,28 @@ public final class Main {
         final File props = new File(dir, "host.properties");
         final Properties p = new Properties();
         if (props.isFile()) try (FileInputStream in = new FileInputStream(props)) { p.load(in); }
+        if (typedCode != null) {
+            String c = Rtc.normalizeCode(typedCode);
+            if (c == null || !Rtc.isPicked(c)) {
+                say("\"" + typedCode + "\" can't be a room code: use " + Rtc.PICKED_MIN + " to " + Rtc.PICKED_MAX + " letters/digits, like MYWORLD.");
+                System.exit(2);
+            }
+
+            if (!c.equals(p.getProperty("code"))) p.remove("token");
+            p.setProperty("code", c);
+        }
+        String saved = Rtc.normalizeCode(p.getProperty("code", ""));
+        if (saved == null || !Rtc.isPicked(saved)) {
+
+            if (p.remove("code") != null | p.remove("token") != null) {
+                try (FileOutputStream out = new FileOutputStream(props)) { p.store(out, "OpenHouse host"); } catch (Exception ignored) { }
+            }
+        } else p.setProperty("code", saved);
         say("Giving the BTA server at " + target + " a room code (Ctrl+C to stop)...");
+        if (!Rtc.isPicked(p.getProperty("code", "")))
+            say("(a new code every start - for one that stays: java -jar openhouse-helper.jar host " + address + " <6-16 letters/digits>)");
         Host h = new Host(dir, p.getProperty("code", ""), p.getProperty("token", ""), target, Main::say, (c, t) -> {
+            if (!Rtc.isPicked(c)) return;
             if (c.equals(p.getProperty("code")) && t.equals(p.getProperty("token"))) return;
             p.setProperty("code", c);
             p.setProperty("token", t);
@@ -240,7 +262,7 @@ public final class Main {
             });
             Runnable go = () -> {
                 String code = Rtc.normalizeCode(codeField.getText());
-                if (code == null) { status.setText("Codes are 5 letters/digits, like K7QXD (no 0, 1, I or O)."); return; }
+                if (code == null) { status.setText("Codes are 5 letters/digits like K7QXD, or a server's own name."); return; }
                 if (current[0] != null && current[0].code.equals(code) && current[0].alive()) {
                     current[0].probe();
                     return;
