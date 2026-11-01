@@ -13,12 +13,20 @@ import org.lwjgl.input.Keyboard;
 public final class ScreenOpenToFriends extends Screen {
     private final LocalServer server;
     private final boolean closing;
+    private final String[] lost;
     private boolean handedOver;
     private ButtonElement cancel;
 
     public ScreenOpenToFriends(LocalServer server, boolean closing) {
         this.server = server;
         this.closing = closing;
+        this.lost = null;
+    }
+
+    public ScreenOpenToFriends(LocalServer server, String[] disconnected) {
+        this.server = server;
+        this.closing = true;
+        this.lost = disconnected;
     }
 
     @Override public void init() {
@@ -28,7 +36,7 @@ public final class ScreenOpenToFriends extends Screen {
     }
 
     private boolean crashed() {
-        return !closing && server.crash != null;
+        return (!closing || lost != null) && server.crash != null;
     }
 
     @Override public void tick() {
@@ -37,7 +45,7 @@ public final class ScreenOpenToFriends extends Screen {
         if (!closing && s == LocalServer.State.READY && !crashed()) {
             handedOver = true;
             mc.displayScreen(new ScreenConnecting(mc, "127.0.0.1", server.port));
-        } else if (closing && (s == LocalServer.State.STOPPED || s == LocalServer.State.FAILED)) {
+        } else if (closing && lost == null && (s == LocalServer.State.STOPPED || s == LocalServer.State.FAILED)) {
             handedOver = true;
             mc.displayScreen(new ScreenMainMenu());
         }
@@ -46,6 +54,8 @@ public final class ScreenOpenToFriends extends Screen {
             cancel.visible = cancel.enabled = true;
             cancel.displayString = I18n.getInstance().translateKey("gui.openhouse.button.back");
         }
+
+        if (lost != null && (s == LocalServer.State.STOPPED || s == LocalServer.State.FAILED || crashed())) cancel.visible = cancel.enabled = true;
     }
 
     @Override protected void buttonClicked(@NotNull ButtonElement button) {
@@ -77,6 +87,21 @@ public final class ScreenOpenToFriends extends Screen {
                 ly += 11;
             }
             drawStringCenteredShadow(fontRenderer, t.translateKey("gui.openhouse.lan.crashed.details"), cx, ly + 6, 0xA0A0A0);
+            super.render(mx, my, partialTick);
+            return;
+        }
+        if (lost != null) {
+
+            drawStringCenteredShadow(fontRenderer, lost[0], cx, y, 0xFFFFFF);
+            int ly = y + 40;
+            for (String l : wrap(lost[1], 52, 3)) {
+                drawStringCenteredShadow(fontRenderer, l, cx, ly, 0xFFFFFF);
+                ly += 11;
+            }
+            LocalServer.State s = server.state;
+            boolean failed = s == LocalServer.State.FAILED;
+            String line = failed ? server.detail : t.translateKey(s == LocalServer.State.STOPPED ? "gui.openhouse.lan.lost.saved" : "gui.openhouse.lan.lost.saving");
+            drawStringCenteredShadow(fontRenderer, line, cx, ly + 14, failed ? 0xFF6060 : 0xA0A0A0);
             super.render(mx, my, partialTick);
             return;
         }

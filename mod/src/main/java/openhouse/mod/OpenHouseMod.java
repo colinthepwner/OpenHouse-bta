@@ -9,6 +9,7 @@ import java.util.Properties;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Screen;
 import net.minecraft.client.gui.ScreenMainMenu;
 import net.minecraft.client.gui.server.ScreenSelectServer;
 import net.minecraft.client.render.texture.stitcher.TextureRegistry;
@@ -78,6 +79,19 @@ public final class OpenHouseMod implements ClientModInitializer {
             ls.crashShown = true;
             mc.displayScreen(new ScreenOpenToFriends(ls, false));
         }
+
+        if (ls != null && ls.state == LocalServer.State.READY && ls.crash == null && connectingToOwnWorld()) {
+            Screen s = mc.currentScreen;
+            if (mc.currentWorld != null && mc.isMultiplayerWorld()) {
+                ls.hostIn = true;
+            } else if (mc.currentWorld == null && !(s instanceof net.minecraft.client.gui.ScreenConnecting)
+                    && (ls.hostIn || s instanceof net.minecraft.client.gui.ScreenConnectFailed)) {
+                String[] why = disconnectReason(s);
+                if (ls.hostDisconnected())
+
+                    mc.displayScreen(why != null ? new ScreenOpenToFriends(ls, why) : new ScreenOpenToFriends(ls, true));
+            }
+        }
         if (ls != null && ls.code != null && !ls.announced && LocalServer.hosting() && mc.thePlayer != null && mc.isMultiplayerWorld() && mc.hudIngame != null) {
             ls.announced = true;
             mc.hudIngame.addChatMessage(I18n.getInstance().translateKeyAndFormat("gui.openhouse.lan.announce", ls.code));
@@ -127,6 +141,24 @@ public final class OpenHouseMod implements ClientModInitializer {
     public static void connectingTo(String host, int port) {
         connectHost = host;
         connectPort = port;
+    }
+
+    static boolean connectingToOwnWorld() {
+        return LocalServer.hostToken(connectHost, connectPort) != null;
+    }
+
+    static String[] disconnectReason(Screen s) {
+        if (!(s instanceof net.minecraft.client.gui.ScreenConnectFailed)) return null;
+        try {
+            java.lang.reflect.Field m = net.minecraft.client.gui.ScreenConnectFailed.class.getDeclaredField("errorMessage");
+            java.lang.reflect.Field d = net.minecraft.client.gui.ScreenConnectFailed.class.getDeclaredField("errorDetail");
+            m.setAccessible(true);
+            d.setAccessible(true);
+            Object what = m.get(s), why = d.get(s);
+            return new String[] { what == null ? "" : what.toString(), why == null ? "" : why.toString() };
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static boolean connectingToRoom() {
