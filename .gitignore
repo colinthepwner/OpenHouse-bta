@@ -15,4 +15,6 @@ test/
 art/*.py
 art/*.jpg
 art/ohicon.png
+art/ohicon-small.png
 art/ohcape.png
+/openhouse/

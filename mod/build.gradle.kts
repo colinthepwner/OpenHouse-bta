@@ -44,6 +44,8 @@ dependencies {
 
 	compileOnly("dev.onvoid.webrtc:webrtc-java:0.20.0")
 
+	compileOnly("com.formdev:flatlaf:3.6.2")
+
 	compileOnly(libs.bundles.btaLwjgl)
 	compileOnly(libs.joml)
 	compileOnly(libs.joml.primitives)
@@ -110,6 +112,15 @@ tasks {
 			from(it) {
 				rename { original -> "${original}_${archiveBaseName.get()}" }
 			}
+		}
+
+		if (name != "sourcesJar") manifest { attributes("Main-Class" to "openhouse.mod.OpenHost") }
+	}
+
+	named<AbstractArchiveTask>("jar") {
+		doLast {
+			val f = archiveFile.get().asFile
+			f.copyTo(f.resolveSibling("OpenHost.jar"), overwrite = true)
 		}
 	}
 	processResources {

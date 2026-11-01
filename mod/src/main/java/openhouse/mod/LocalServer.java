@@ -230,37 +230,8 @@ public final class LocalServer {
         t.start();
     }
 
-    static final java.util.regex.Pattern PRIVATE = java.util.regex.Pattern.compile("(?i)token|secret|passw|auth|account|credential|webhook|api.?key|session");
-
     static File zipConfigs(File configDir, File zip) {
-        if (!configDir.isDirectory()) return null;
-        int n = 0;
-        try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(new FileOutputStream(zip))) {
-            List<File> todo = new ArrayList<>();
-            todo.add(configDir);
-            while (!todo.isEmpty()) {
-                File d = todo.remove(todo.size() - 1);
-                File[] kids = d.listFiles();
-                if (kids == null) continue;
-                java.util.Arrays.sort(kids);
-                for (File k : kids) {
-                    if (PRIVATE.matcher(k.getName()).find()) continue;
-                    if (k.isDirectory()) { todo.add(k); continue; }
-                    if (k.length() > 512 * 1024) continue;
-                    String name = configDir.toPath().relativize(k.toPath()).toString().replace('\\', '/');
-                    java.util.zip.ZipEntry e = new java.util.zip.ZipEntry(name);
-                    e.setTime(0);
-                    z.putNextEntry(e);
-                    java.nio.file.Files.copy(k.toPath(), z);
-                    z.closeEntry();
-                    n++;
-                }
-            }
-        } catch (IOException e) {
-            OpenHouseMod.LOG.warn("couldn't pack the configs to share: {}", e.toString());
-            return null;
-        }
-        return n > 0 ? zip : null;
+        return openhouse.ModShare.zipConfigs(configDir, zip, null);
     }
 
     static void copyConfigs(File from, File to) {

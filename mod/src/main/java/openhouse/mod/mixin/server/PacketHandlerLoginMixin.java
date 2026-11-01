@@ -22,11 +22,14 @@ public abstract class PacketHandlerLoginMixin implements LoginFlags {
     @Unique private volatile PacketLogin openhouse$checking;
     @Unique private volatile boolean openhouse$noAccount;
 
+    @Unique private volatile String openhouse$proof;
+
     @Override public boolean openhouse$isHost() { return openhouse$host; }
     @Override public boolean openhouse$noAccount() { return openhouse$noAccount; }
 
     @Inject(method = "handleHandshake", at = @At("HEAD"), cancellable = true)
     private void openhouse$hostHandshake(PacketHandshake packet, CallbackInfo ci) {
+        if (openhouse.RoomPassword.isProof(packet.username)) openhouse$proof = packet.username;
         if (!ServerRoom.isHostToken(packet.username)) return;
         openhouse$host = true;
         ((PacketHandlerLogin) (Object) this).netManager.addToSendQueue(new PacketHandshake("-"));
@@ -65,12 +68,17 @@ public abstract class PacketHandlerLoginMixin implements LoginFlags {
         return UUIDHelper.getUUIDFromName(name);
     }
 
-    @Inject(method = "doLogin", at = @At("HEAD"))
+    @Inject(method = "doLogin", at = @At("HEAD"), cancellable = true)
     private void openhouse$idForNoAccount(PacketLogin packet, CallbackInfo ci) {
         java.util.UUID id = ServerRoom.playerId(packet.username, packet.uuid, openhouse$host);
         if (id != packet.uuid) {
             ServerRoom.LOG.info("{} has no Minecraft account id - keeping their stuff under {}", packet.username, id);
             packet.uuid = id;
+        }
+        String no = ServerRoom.loginRefusal(packet.username, packet.uuid, openhouse$proof, openhouse$host);
+        if (no != null) {
+            ((PacketHandlerLogin) (Object) this).kickUser(no);
+            ci.cancel();
         }
     }
 }

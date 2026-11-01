@@ -7,5 +7,8 @@ public final class OpenHouseServer implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
         CommandManager.registerServerCommand(new RoomCommand());
+
+        if ("modern".equals(HostUi.launched())) HostWindow.open();
+        GuiLog.installIfWanted();
     }
 }

@@ -14,18 +14,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class ScreenConnectingMixin {
     @Unique private String openhouse$hostToken;
 
+    @Unique private String openhouse$target;
+
     @Inject(method = "<init>(Lnet/minecraft/client/Minecraft;Ljava/lang/String;I)V",
             at = @At(value = "INVOKE", target = "Ljava/lang/Thread;start()V"), require = 0)
     private void openhouse$ownWorld(Minecraft mc, String host, int port, CallbackInfo ci) {
         openhouse$hostToken = LocalServer.hostToken(host, port);
 
         openhouse.mod.OpenHouseMod.connectingTo(host, port);
+        openhouse$target = openhouse.mod.OpenHouseMod.targetFor(host, port);
     }
 
     @ModifyArg(method = "lambda$new$0",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/core/net/packet/PacketHandshake;<init>(Ljava/lang/String;)V"), require = 0)
     private String openhouse$hostHandshake(String name) {
         String t = openhouse$hostToken;
-        return t != null ? t : name;
+        return t != null ? t : openhouse.mod.OpenHouseMod.handshakeName(openhouse$target, name);
     }
 }

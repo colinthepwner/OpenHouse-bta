@@ -26,6 +26,36 @@ public abstract class MinecraftServerMixin {
         }
     }
 
+    @Inject(method = "doTick", at = @At("HEAD"), require = 0)
+    private void openhouse$tick(CallbackInfo ci) {
+        if (ServerRoom.OPENHOST) openhouse.mod.server.HostWindow.TICKS.incrementAndGet();
+        if (ServerRoom.STATS_MS > 0) ServerRoom.statsTickStart();
+    }
+
+    @Inject(method = "doTick", at = @At("RETURN"), require = 0)
+    private void openhouse$tickEnd(CallbackInfo ci) {
+        if (ServerRoom.STATS_MS > 0) ServerRoom.statsTickEnd((MinecraftServer) (Object) this);
+    }
+
+    @Redirect(method = "commandLineParser", at = @At(value = "INVOKE", target = "Lnet/minecraft/core/net/command/CommandManager;execute(Ljava/lang/String;Lnet/minecraft/core/net/command/CommandSource;)I"), require = 0)
+    private int openhouse$lazy(net.minecraft.core.net.command.CommandManager commands, String command, net.minecraft.core.net.command.CommandSource source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        if (ServerRoom.OPENHOST) {
+            try {
+                openhouse.mod.server.LazyCommands.Result r = openhouse.mod.server.LazyCommands.resolve((MinecraftServer) (Object) this, command);
+                if (r != null && !r.command.equals(command)) {
+                    ServerRoom.LOG.info("{}  →  {}", ServerRoom.hideSecret(command.trim()), ServerRoom.hideSecret(r.command));
+                    command = r.command;
+                }
+            } catch (Throwable ignored) { }
+        }
+        return commands.execute(command, source);
+    }
+
+    @Redirect(method = "run", at = @At(value = "INVOKE", target = "Ljava/lang/System;exit(I)V"), require = 0)
+    private void openhouse$exitCode(int code) {
+        System.exit(ServerRoom.restartRequested && ServerRoom.OPENHOST ? openhouse.mod.OpenHost.RESTART_EXIT : code);
+    }
+
     @Inject(method = "stopServer", at = @At("HEAD"))
     private void openhouse$stopping(CallbackInfo ci) {
         try {
