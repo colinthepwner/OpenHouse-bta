@@ -75,6 +75,12 @@ public final class LazyCommands {
                 break;
             case "creative": case "survival": case "adventure": case "spectator":
                 return gamemode(s, w);
+
+            case "save-all": case "saveall": case "save":
+                if (rest.isEmpty()) return "save all";
+                break;
+            case "save-off": return rest.isEmpty() ? "save off" : null;
+            case "save-on": return rest.isEmpty() ? "save on" : null;
         }
         String root = rootCommand(s, verb);
         if (root == null) return null;
@@ -85,8 +91,26 @@ public final class LazyCommands {
             case "say": case "me": case "message": case "msg": case "tell": case "w":
 
                 return generic(s, joinFrom(root, rest, root.equals("say") || root.equals("me") ? 0 : 1));
-            case "kick": case "ban":
+
+            case "kick": {
+                String who = rest.isEmpty() ? null : player(s, rest.get(0));
+                if (who == null) return null;
+                if (rest.size() == 1) return "kick " + who;
+                return "oh kick " + who + " " + String.join(" ", rest.subList(1, rest.size()));
+            }
+            case "ban":
+                if (rest.size() == 1 && !rest.get(0).equalsIgnoreCase("username") && !rest.get(0).equalsIgnoreCase("ip")) {
+                    String who = player(s, rest.get(0));
+                    return "ban username " + (who != null ? who : rest.get(0));
+                }
                 return generic(s, joinFrom(root, rest, 1));
+            case "heal":
+
+                if (rest.size() == 1) {
+                    String who = player(s, rest.get(0));
+                    return who == null ? null : "heal " + who + " 32768";
+                }
+                break;
         }
         List<String> all = new ArrayList<>();
         all.add(root);

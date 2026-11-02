@@ -223,6 +223,9 @@ public final class HostMain {
         boolean remoteSet;
         volatile RTCDataChannel dc;
         volatile Socket tcp;
+        volatile Thread upThread;
+        static final long UP_LINGER_MS = 1000;
+        static final long UP_DRAIN_MS = UP_LINGER_MS + 2000;
         final BlockingQueue<byte[]> toServer = new LinkedBlockingQueue<>();
         volatile boolean closed;
 
@@ -300,6 +303,8 @@ public final class HostMain {
                     ByteBuffer d = b.data;
                     byte[] bytes = new byte[d.remaining()];
                     d.get(bytes);
+
+                    if (DEBUG && bytes.length > 0 && bytes[0] == (byte) 255) debug(cid + " joiner sent a disconnect packet (" + bytes.length + " bytes)");
                     toServer.offer(bytes);
                 }
             });
@@ -391,6 +396,8 @@ public final class HostMain {
         }
 
         void pipe() {
+
+            final java.util.concurrent.CountDownLatch serverDone = new java.util.concurrent.CountDownLatch(1);
             try {
                 Socket s = new Socket();
                 s.connect(new InetSocketAddress(targetHost, targetPort), 5000);
@@ -402,30 +409,53 @@ public final class HostMain {
                 Thread up = new Thread(() -> {
                     try {
                         OutputStream out = s.getOutputStream();
-                        while (!closed) {
+                        while (true) {
                             byte[] b = toServer.take();
                             if (b.length == 0) break;
                             out.write(b);
                             if (toServer.isEmpty()) out.flush();
                         }
+                        out.flush();
+                        serverDone.await(UP_LINGER_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
                     } catch (Exception ignored) {
-                    } finally { close(); }
+                    } finally {
+                        try { s.close(); } catch (IOException ignored) { }
+                        close();
+                    }
                 }, "openhouse up");
                 up.setDaemon(true);
+                upThread = up;
                 up.start();
 
                 InputStream in = s.getInputStream();
                 byte[] buf = new byte[16384];
                 int n;
-                while (!closed && (n = in.read(buf)) > 0) {
+                boolean sending = true;
+                while ((n = in.read(buf)) > 0) {
+                    if (!sending || closed) continue;
                     RTCDataChannel ch = dc;
-                    if (ch == null) break;
-                    while (!closed && ch.getBufferedAmount() > MAX_BUFFERED) Thread.sleep(5);
-                    ch.send(new RTCDataChannelBuffer(ByteBuffer.wrap(Arrays.copyOf(buf, n)), true));
+                    if (ch == null) { sending = false; close(); continue; }
+                    try {
+                        while (!closed && ch.getBufferedAmount() > MAX_BUFFERED) Thread.sleep(5);
+                        if (!closed) ch.send(new RTCDataChannelBuffer(ByteBuffer.wrap(Arrays.copyOf(buf, n)), true));
+                    } catch (Exception e) {
+
+                        sending = false;
+                        if (!closed) {
+                            boolean gone;
+                            try { gone = ch.getState() != RTCDataChannelState.OPEN; }
+                            catch (Throwable t) { gone = true; }
+                            if (gone) debug(cid + " channel closed by the joiner while the server was sending (" + e.getMessage() + ")");
+                            else log("player connection ended: " + e.getMessage());
+                        }
+                        close();
+                    }
                 }
             } catch (Exception e) {
+
                 if (!closed) log("player connection ended: " + e.getMessage());
             } finally {
+                serverDone.countDown();
                 close();
             }
         }
@@ -444,10 +474,17 @@ public final class HostMain {
             debug(cid + " closed" + (piped ? "" : " (never piped)"));
             peers.remove(cid, this);
             toServer.offer(new byte[0]);
-            try { if (tcp != null) tcp.close(); } catch (IOException ignored) { }
 
-            final boolean wasPlayer = tcp != null;
+            final Socket s = tcp;
+            final Thread up = upThread;
+            if (up == null) try { if (s != null) s.close(); } catch (IOException ignored) { }
+
+            final boolean wasPlayer = s != null;
             Thread t = new Thread(() -> {
+                if (up != null) {
+                    try { up.join(UP_DRAIN_MS); } catch (InterruptedException ignored) { }
+                    try { s.close(); } catch (IOException ignored) { }
+                }
                 try { RTCDataChannel ch = dc; if (ch != null) ch.close(); } catch (Throwable ignored) { }
                 try { pc.close(); } catch (Throwable ignored) { }
                 if (wasPlayer) players();

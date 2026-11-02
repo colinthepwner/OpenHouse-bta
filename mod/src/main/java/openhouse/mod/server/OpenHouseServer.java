@@ -8,6 +8,8 @@ public final class OpenHouseServer implements DedicatedServerModInitializer {
     public void onInitializeServer() {
         CommandManager.registerServerCommand(new RoomCommand());
 
+        QuietLog.install();
+
         if ("modern".equals(HostUi.launched())) HostWindow.open();
         GuiLog.installIfWanted();
     }
