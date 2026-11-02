@@ -414,6 +414,9 @@ public final class HostWindow {
         mp.add(mtip, BorderLayout.SOUTH);
         side.addTab("Mods (" + mods.size() + ")", mp);
         side.addTab("Settings", settings());
+
+        String demoTab = System.getProperty("openhouse.openhost.demotab");
+        if (demoTab != null) try { side.setSelectedIndex(Integer.parseInt(demoTab)); } catch (RuntimeException ignored) { }
         return side;
     }
 
@@ -426,7 +429,7 @@ public final class HostWindow {
         JPanel q = new JPanel(new GridLayout(0, 2, 6, 6));
         q.setAlignmentX(0);
 
-        q.add(tint(action("Save world", "save-all"), 0x4ADE80, 0x15803D));
+        q.add(tint(action("Save world", "save all"), 0x4ADE80, 0x15803D));
         q.add(tint(action("Day", "time set day"), 0xFBBF24, 0xB45309));
         q.add(tint(action("Night", "time set night"), 0xA78BFA, 0x6D28D9));
         q.add(tint(action("Clear weather", "weather clear"), 0x38BDF8, 0x0369A1));
@@ -843,7 +846,8 @@ public final class HostWindow {
         JMenu gm = new JMenu("Game mode");
         for (String mode : new String[] { "survival", "creative" }) gm.add(item(Character.toUpperCase(mode.charAt(0)) + mode.substring(1), () -> run("gamemode " + mode + " " + name)));
         m.add(gm);
-        m.add(item("Heal", () -> run("heal " + name)));
+
+        m.add(item("Heal", () -> run("heal " + name + " 32768")));
         m.addSeparator();
         m.add(item("Make operator", () -> run("op " + name)));
         m.add(item("Remove operator", () -> run("deop " + name)));
@@ -851,10 +855,10 @@ public final class HostWindow {
         m.addSeparator();
         m.add(item("Kick…", () -> {
             String why = JOptionPane.showInputDialog(frame, "Kick " + name + " - reason (optional):", "Kick", JOptionPane.PLAIN_MESSAGE);
-            if (why != null) run("kick " + name + (why.trim().isEmpty() ? "" : " " + why.trim()));
+            if (why != null) run(why.trim().isEmpty() ? "kick " + name : "oh kick " + name + " " + why.trim());
         }));
         m.add(item("Ban…", () -> {
-            if (JOptionPane.showConfirmDialog(frame, "Ban " + name + "?", "Ban", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) run("ban " + name);
+            if (JOptionPane.showConfirmDialog(frame, "Ban " + name + "?", "Ban", JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) run("ban username " + name);
         }));
         return m;
     }

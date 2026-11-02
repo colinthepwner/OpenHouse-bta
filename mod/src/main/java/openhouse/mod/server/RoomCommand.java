@@ -137,6 +137,23 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                             return 1;
                         }))
 
+                .then(ArgumentBuilderLiteral.<CommandSource>literal("kick").requires(RoomCommand::owner)
+                        .then(ArgumentBuilderRequired.<CommandSource, String>argument("player", ArgumentTypeString.word())
+                                .then(ArgumentBuilderRequired.<CommandSource, String>argument("reason", ArgumentTypeString.greedyString())
+                                        .executes(c -> {
+                                            String n = ArgumentTypeString.getString(c, "player");
+                                            String why = ArgumentTypeString.getString(c, "reason").trim();
+                                            net.minecraft.server.MinecraftServer s = net.minecraft.server.MinecraftServer.getInstance();
+                                            net.minecraft.server.entity.player.PlayerServer who = null;
+                                            if (s != null && s.playerList != null)
+                                                for (net.minecraft.server.entity.player.PlayerServer p : new java.util.ArrayList<>(s.playerList.playerEntities))
+                                                    if (p.username.equalsIgnoreCase(n)) who = p;
+                                            if (who == null) { c.getSource().sendMessage(n + " isn't on the server."); return 0; }
+                                            who.playerNetServerHandler.kickPlayer(why.isEmpty() ? "Kicked by admin" : why);
+                                            c.getSource().sendMessage("Kicked " + who.username + ": " + why);
+                                            return 1;
+                                        }))))
+
                 .then(ArgumentBuilderLiteral.<CommandSource>literal("ui").requires(s -> s.hasAdmin() && ServerRoom.OPENHOST)
                         .executes(c -> {
                             c.getSource().sendMessage("OpenHost's window: " + HostUi.read(HostUi.KEY, "modern") + " (oh ui modern | classic | console)");
