@@ -27,6 +27,7 @@
     "server.PacketHandlerLoginMixin",
     "server.PlayerListMixin",
     "server.PlayerServerMixin",
-    "server.ServerGuiMixin"
+    "server.ServerGuiMixin",
+    "server.NoSoundMixin"
   ]
 }

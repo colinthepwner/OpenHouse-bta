@@ -68,3 +68,7 @@ gui.openhouse.password.needed=Type it to join. You only need to do this once.
 gui.openhouse.password.wrong=Wrong password - try again. (It may have changed.)
 gui.openhouse.password.remember=OpenHouse remembers it for this server.
 gui.openhouse.password.button.cancel=Cancel
+gui.openhouse.packs.downloading=Getting the host's texture packs... %d%% of %s
+gui.openhouse.packs.got=Got %s from the host.
+gui.openhouse.packs.where=It's in Options > Texture Packs - off until you turn it on.
+gui.openhouse.packs.where2=They're in Options > Texture Packs - off until you turn them on.

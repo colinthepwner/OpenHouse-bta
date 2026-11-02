@@ -76,6 +76,28 @@ public final class ModShare {
         return m;
     }
 
+    public static final String TEXTURE_PACK = "openhouse:texturepack";
+
+    public static Mod texturePack(File f) throws IOException {
+        String sha = Rtc.sha256(f);
+        String clean = f.getName().replaceAll("[^A-Za-z0-9._+\\-]", "_");
+        if (clean.length() > 120) clean = clean.substring(clean.length() - 120);
+        Mod m = new Mod(TEXTURE_PACK, sha.substring(0, 12), f.getName(), "*", clean, sha, f.length());
+        m.path = f;
+        return m;
+    }
+
+    public static List<Mod> texturePacks(File dir) {
+        List<Mod> out = new ArrayList<>();
+        File[] zips = dir.listFiles((d, n) -> n.toLowerCase(java.util.Locale.ROOT).endsWith(".zip"));
+        if (zips == null) return out;
+        Arrays.sort(zips);
+        for (File z : zips) {
+            try { if (z.isFile()) out.add(texturePack(z)); } catch (IOException ignored) { }
+        }
+        return out;
+    }
+
     public static String toJson(List<Mod> mods) {
         List<Object> list = new ArrayList<>();
         for (Mod m : mods)

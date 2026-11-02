@@ -152,8 +152,27 @@ public final class ServerRoom {
 
     public static java.util.UUID playerId(String name, java.util.UUID sent, boolean host) {
         boolean none = sent == null || (sent.getMostSignificantBits() == 0 && sent.getLeastSignificantBits() == 0);
-        if (!LAN || host || !none || name == null) return sent;
-        return java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
+        if (host || !none || name == null) return sent;
+        java.util.UUID id = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
+        if (!LAN) adoptSharedSave(id);
+        return id;
+    }
+
+    static final String ADOPTED_NOTE = ".openhouse-handed-on";
+    private static void adoptSharedSave(java.util.UUID id) {
+        File dir = playersDir();
+        if (dir == null) return;
+        File shared = new File(dir, new java.util.UUID(0, 0) + ".dat");
+        File own = new File(dir, id + ".dat");
+        File note = new File(dir, shared.getName() + ADOPTED_NOTE);
+        if (!shared.isFile() || own.exists() || note.exists()) return;
+        try {
+            java.nio.file.Files.copy(shared.toPath(), own.toPath());
+            java.nio.file.Files.write(note.toPath(), (id + "\n").getBytes(StandardCharsets.UTF_8));
+            LOG.info("the save account-less players used to share is now {}'s own ({})", id, own.getName());
+        } catch (java.io.IOException e) {
+            LOG.info("couldn't hand the shared account-less save to {} ({}) - starting them fresh", id, e.toString());
+        }
     }
 
     private volatile Host host;
@@ -344,10 +363,19 @@ public final class ServerRoom {
             return new java.io.File(given);
         }
         try {
-            String prop = System.getProperty("fabric.modsFolder");
+
+            String real = System.getProperty("openhouse.openhost.mods");
+            String prop = real != null && !real.isEmpty() ? real : System.getProperty("fabric.modsFolder");
             java.io.File folder = prop != null && !prop.isEmpty() ? new java.io.File(prop) : new java.io.File(FabricLoader.getInstance().getGameDir().toFile(), "mods");
             java.util.List<openhouse.ModShare.Mod> mods = openhouse.ModShare.scan(folder);
-            LOG.info("sharing {} mod{} with players who join by code", mods.size(), mods.size() == 1 ? "" : "s");
+
+            mods.removeIf(m -> openhouse.mod.OpenHouseMod.MOD_ID.equals(m.id));
+
+            java.util.List<openhouse.ModShare.Mod> packs = openhouse.ModShare.texturePacks(new java.io.File(FabricLoader.getInstance().getGameDir().toFile(), "texturepacks"));
+            if (!packs.isEmpty()) LOG.info("sharing {} texture pack{} with players who join by code (theirs to turn on)", packs.size(), packs.size() == 1 ? "" : "s");
+            mods.addAll(packs);
+            int modCount = mods.size() - packs.size();
+            LOG.info("sharing {} mod{} with players who join by code", modCount, modCount == 1 ? "" : "s");
 
             dataDir.mkdirs();
             java.io.File cfg = openhouse.ModShare.zipConfigs(FabricLoader.getInstance().getConfigDir().toFile(),

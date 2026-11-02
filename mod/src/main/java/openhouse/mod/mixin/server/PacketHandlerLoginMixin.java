@@ -79,6 +79,13 @@ public abstract class PacketHandlerLoginMixin implements LoginFlags {
         if (no != null) {
             ((PacketHandlerLogin) (Object) this).kickUser(no);
             ci.cancel();
+            return;
         }
+
+        try {
+            java.net.SocketAddress a = ((PacketHandlerLogin) (Object) this).netManager.getRemoteAddress();
+            if (a instanceof java.net.InetSocketAddress && openhouse.Host.WEB_PORTS.remove(((java.net.InetSocketAddress) a).getPort()))
+                ServerRoom.LOG.info("{} is joining from MCRE (Minecraft in a web browser) - it's a different game underneath, so some things may look or act a little differently for them", packet.username);
+        } catch (RuntimeException ignored) { }
     }
 }

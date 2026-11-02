@@ -30,6 +30,8 @@ public final class Host {
     public volatile Consumer<String> onWarn;
     private boolean takenSaid;
 
+    public static final java.util.Set<Integer> WEB_PORTS = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
     public Host(File dataDir, String code, String token, String target, Consumer<String> log, Saver saver) {
         this(dataDir, code, token, target, null, log, saver);
     }
@@ -87,6 +89,11 @@ public final class Host {
                     } else if (line.startsWith("WARN ")) {
                         Consumer<String> w = onWarn;
                         (w != null ? w : log).accept(line.substring(5));
+                    } else if (line.startsWith("WEB ")) {
+                        try {
+                            if (WEB_PORTS.size() > 64) WEB_PORTS.clear();
+                            WEB_PORTS.add(Integer.parseInt(line.substring(4).trim()));
+                        } catch (NumberFormatException ignored) { }
                     } else if (line.startsWith("LOG ")) {
                         log.accept(line.substring(4));
                     } else if (!line.trim().isEmpty()) {

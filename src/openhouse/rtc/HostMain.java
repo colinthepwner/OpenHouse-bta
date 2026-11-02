@@ -43,6 +43,8 @@ public final class HostMain {
 
     static final long OPEN_TIMEOUT_MS = 45000;
 
+    static final String JOINER_PREFIX = "bta-join-";
+
     static String code;
     static String targetHost;
     static int targetPort;
@@ -185,6 +187,7 @@ public final class HostMain {
             Peer old = peers.remove(cid);
             if (old != null) old.close();
             Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))), Json.str(payload.get("oh")));
+            p.web = !src.startsWith(JOINER_PREFIX);
             peers.put(cid, p);
             p.offer(Json.str(sdp.get("sdp")));
             Thread w = new Thread(() -> {
@@ -218,6 +221,8 @@ public final class HostMain {
         final String remote, cid;
         final boolean mods;
         final String theirVersion;
+
+        volatile boolean web;
         final RTCPeerConnection pc;
         final List<RTCIceCandidate> early = new ArrayList<>();
         boolean remoteSet;
@@ -271,10 +276,14 @@ public final class HostMain {
             });
         }
 
-        synchronized void candidate(String mid, int index, String sdp) {
+        void candidate(String mid, int index, String sdp) {
             if (sdp == null || sdp.isEmpty()) return;
             RTCIceCandidate c = new RTCIceCandidate(mid, index, sdp);
-            if (remoteSet) pc.addIceCandidate(c); else early.add(c);
+            synchronized (this) {
+                if (closed) return;
+                if (!remoteSet) { early.add(c); return; }
+            }
+            try { pc.addIceCandidate(c); } catch (RuntimeException e) { debug(cid + " candidate not added: " + e); }
         }
 
         @Override public void onIceCandidate(RTCIceCandidate c) {
@@ -404,6 +413,7 @@ public final class HostMain {
                 s.setTcpNoDelay(true);
                 tcp = s;
                 debug(cid + " piped to the server from port " + s.getLocalPort());
+                if (web) synchronized (System.out) { System.out.println("WEB " + s.getLocalPort()); System.out.flush(); }
                 players();
 
                 Thread up = new Thread(() -> {

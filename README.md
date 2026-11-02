@@ -29,7 +29,8 @@ Step by step:
 Make sure everyone trying to connect is using the mod, and things should just work.
 
 You can load additional mods by simply adding mod.jar to your minecraft/mods folder before loading the world.\
-Only the host needs to worry about adding mods; connecting friends automatically download the mods they need.
+Only the host needs to worry about adding mods; connecting friends automatically download the mods they need.\
+Texture packs you have turned on go to your friends too, ready for them to turn on if they like.
 
 # Always Online Server
 OpenHost.jar works as an alternative to the BTA! server.jar, with a more pleasant frontend.\
@@ -43,6 +44,10 @@ Just place OpenHost.jar in a folder and double-click it; the rest should be self
 - The room code is new every time the server starts. To keep one, type `oh set MYWORLD` in the
   console (6 to 16 letters or digits). If another server already uses it, OpenHost tells you.
 - Mods go in its `mods` folder like on any server, and players who join get them.
+- Texture packs go in its `texturepacks` folder. Players who join get them, switched off until
+  they pick them.
+- Already have a BTA! 8.0.1 server? Put OpenHost.jar in its folder. It uses that server's world,
+  settings and mods, and leaves them working for the old server too. Don't run both at once.
 - Its Settings tab sets a password, a whitelist and the server's memory.
 - Prefer BTA!'s classic server window, or none at all? Set `openhost-ui` to `classic` or
   `console` in `server.properties`.
@@ -53,6 +58,7 @@ Just place OpenHost.jar in a folder and double-click it; the rest should be self
 - Go to **Multiplayer**, pick **Room Code**, type the code and click **Join**.
 - If the host has mods you don't, OH offers to grab them and restart the game with them. Your own
   `mods` folder stays the way it was. Only take mods from people you trust.
+- The host's texture packs land in your texture pack list, switched off.
 
 # Passwords and whitelists
 - `/oh password <password>` in your opened world or the server console. Friends type it once when

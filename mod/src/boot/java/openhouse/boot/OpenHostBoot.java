@@ -132,6 +132,7 @@ public final class OpenHostBoot {
     static int relaunch(File home, String[] args) throws Exception {
         File self = new File(OpenHostBoot.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         List<String> cmd = new ArrayList<>();
+
         cmd.add(javaBin(home, System.console() == null).getPath());
         try {
             for (String a : java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments())
