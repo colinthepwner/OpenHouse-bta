@@ -51,7 +51,6 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
-import javax.swing.JWindow;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -1170,7 +1169,8 @@ public final class HostWindow {
         int at = 0;
         boolean picked;
         String base = "";
-        JWindow popup;
+
+        JScrollPane popup;
         JList<String> list;
         boolean cycling;
 
@@ -1237,24 +1237,29 @@ public final class HostWindow {
 
         boolean popupShown() { return popup != null && popup.isVisible(); }
 
-        void hide() { if (popup != null) popup.setVisible(false); }
+        void hide() {
+            if (popup == null || !popup.isVisible()) return;
+            popup.setVisible(false);
+            frame.getLayeredPane().repaint(popup.getBounds());
+        }
 
         void showPopup() {
             if (options.size() < 2 || !input.isShowing()) { hide(); return; }
             if (popup == null) {
-                popup = new JWindow(frame);
-                popup.setFocusableWindowState(false);
                 list = new JList<>();
                 list.setFont(Laf.mono(Font.PLAIN, 13));
+
+                list.setFocusable(false);
                 list.addMouseListener(new MouseAdapter() {
                     @Override public void mouseClicked(MouseEvent e) {
                         int i = list.locationToIndex(e.getPoint());
                         if (i >= 0) { at = i; accept(); input.requestFocusInWindow(); }
                     }
                 });
-                JScrollPane sp = new JScrollPane(list);
-                sp.setBorder(BorderFactory.createLineBorder(accentFill()));
-                popup.add(sp);
+                popup = new JScrollPane(list);
+                popup.setBorder(BorderFactory.createLineBorder(accentFill()));
+                popup.setVisible(false);
+                frame.getLayeredPane().add(popup, javax.swing.JLayeredPane.POPUP_LAYER);
             }
             DefaultListModel<String> m = new DefaultListModel<>();
             int cut = base.lastIndexOf(' ') + 1;
@@ -1263,14 +1268,21 @@ public final class HostWindow {
             list.setSelectedIndex(at);
             int rows = Math.min(8, options.size());
             int h = rows * list.getFontMetrics(list.getFont()).getHeight() + 8;
-            Point p = input.getLocationOnScreen();
+
+            JComponent lp = frame.getLayeredPane();
+            Point p = SwingUtilities.convertPoint(input, 0, 0, lp);
             int x = p.x;
             try {
                 Rectangle r = input.modelToView(Math.min(cut, input.getText().length()));
                 if (r != null) x += r.x;
             } catch (BadLocationException ignored) { }
-            popup.setBounds(x, p.y - h - 4, 380, h);
+            int w = Math.min(380, lp.getWidth());
+            x = Math.max(0, Math.min(x, lp.getWidth() - w));
+            int y = Math.max(0, p.y - h - 4);
+            popup.setBounds(x, y, w, p.y - 4 - y);
             popup.setVisible(true);
+            popup.revalidate();
+            lp.repaint();
         }
 
         void recolor() { if (popup != null) SwingUtilities.updateComponentTreeUI(popup); }

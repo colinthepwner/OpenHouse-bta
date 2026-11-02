@@ -263,6 +263,18 @@ public final class LocalServer {
                 java.nio.file.Files.copy(table.toPath(), copy.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 share.add(openhouse.ModShare.extra(copy, "openhouse:uselessnumerical", "the world's id table"));
             }
+
+            try {
+                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+                if (mc != null && mc.texturePackList != null)
+                    for (net.minecraft.client.render.texturepack.TexturePack p : mc.texturePackList.selectedTexturePacks())
+                        if (p instanceof net.minecraft.client.render.texturepack.TexturePackCustom) {
+                            File f = ((net.minecraft.client.render.texturepack.TexturePackCustom) p).file;
+                            if (f != null && f.isFile() && f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) share.add(openhouse.ModShare.texturePack(f));
+                        }
+            } catch (RuntimeException e) {
+                OpenHouseMod.LOG.warn("can't list the host's texture packs to share: {}", e.toString());
+            }
             return openhouse.ModShare.writeHostManifest(share, new File(base, "share-game.json"));
         } catch (Exception e) {
             OpenHouseMod.LOG.warn("can't list the game's mods to share: {}", e.toString());

@@ -101,6 +101,26 @@ public final class Rtc {
         return fetchPinned(dir, BTA_SERVER_URL, "bta-server-" + BTA_SERVER_VERSION + ".jar", BTA_SERVER_SHA256, "the BTA server", status);
     }
 
+    public static String adoptBtaServer(File dir, File folder, File skip) {
+        File target = new File(dir, "bta-server-" + BTA_SERVER_VERSION + ".jar");
+        if (target.isFile()) return null;
+        File[] jars = folder.listFiles((d, n) -> n.toLowerCase(java.util.Locale.ROOT).endsWith(".jar"));
+        if (jars == null) return null;
+        for (File j : jars) {
+
+            if (j.equals(skip) || j.length() < 1_000_000 || j.length() > 100_000_000) continue;
+            try {
+                if (!BTA_SERVER_SHA256.equals(sha256(j))) continue;
+                if (!dir.isDirectory() && !dir.mkdirs()) return null;
+                File tmp = new File(dir, target.getName() + ".part");
+                java.nio.file.Files.copy(j.toPath(), tmp.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                java.nio.file.Files.move(tmp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                return j.getName();
+            } catch (IOException ignored) { }
+        }
+        return null;
+    }
+
     static final String[][] LOADER = {
         { "https://maven.thesignalumproject.net/infrastructure/net/fabricmc/fabric-loader/0.18.4-bta.11/fabric-loader-0.18.4-bta.11.jar",
           "d498d0279a4a72fbc95b56a9c9f8be4ffc5838d516423ec11f21899abe86e4f9" },

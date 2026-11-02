@@ -79,7 +79,7 @@ public final class Main {
 
             File bin = new File(System.getProperty("java.home"), "bin");
             File javaw = new File(bin, "javaw.exe");
-            String javaBin = System.console() == null && javaw.isFile() ? javaw.getPath() : new File(bin, "java").getPath();
+            String javaBin = !hasTerminal() && javaw.isFile() ? javaw.getPath() : new File(bin, "java").getPath();
             java.util.List<String> cmd = new java.util.ArrayList<>();
             cmd.add(javaBin);
             cmd.add("-jar");
@@ -113,6 +113,16 @@ public final class Main {
     }
 
     static void say(String s) { synchronized (System.out) { System.out.println(s); System.out.flush(); } }
+
+    static boolean hasTerminal() {
+        java.io.Console c = System.console();
+        if (c == null) return false;
+        try {
+            return (Boolean) java.io.Console.class.getMethod("isTerminal").invoke(c);
+        } catch (Exception e) {
+            return true;
+        }
+    }
 
     static void join(File dir, String typed, int port, boolean mcre, boolean relay) throws Exception {
         String code = Rtc.normalizeCode(typed);

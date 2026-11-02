@@ -147,7 +147,7 @@ public final class JoinMain {
     }
 
     static void newIdentity() {
-        self = "bta-join-" + randomId(16);
+        self = HostMain.JOINER_PREFIX + randomId(16);
         token = randomId(12);
     }
 
@@ -190,6 +190,8 @@ public final class JoinMain {
                 out("OFFLINE " + e.getMessage());
             }
             signalOpen = false;
+
+            for (Link l : new ArrayList<>(links.values())) l.restart();
 
             if (idTaken[0]) newIdentity();
             try { Thread.sleep(3000); } catch (InterruptedException e) { return; }
@@ -507,10 +509,39 @@ public final class JoinMain {
             });
         }
 
-        synchronized void candidate(String mid, int index, String sdp) {
-            if (!connects() || closed || sdp == null || sdp.isEmpty()) return;
+        void candidate(String mid, int index, String sdp) {
+            if (!connects() || sdp == null || sdp.isEmpty()) return;
             RTCIceCandidate c = new RTCIceCandidate(mid, index, sdp);
-            if (remoteSet) pc.addIceCandidate(c); else early.add(c);
+            synchronized (this) {
+                if (closed) return;
+                if (!remoteSet) { early.add(c); return; }
+            }
+            try { pc.addIceCandidate(c); } catch (RuntimeException e) { debug(cid + " candidate not added: " + e); }
+        }
+
+        static final int RESTARTS = 2;
+        int restarts;
+
+        void restart() {
+            synchronized (this) {
+                if (closed || opened || tcp == null || mods || restarts >= RESTARTS) return;
+                closed = true;
+            }
+            links.remove(cid, this);
+            Link again = new Link(tcp);
+            again.restarts = restarts + 1;
+            log(cid + " was still connecting when the matchmaking connection dropped - trying again as " + again.cid);
+            final RTCPeerConnection p = pc;
+            final RTCDataChannel ch = dc;
+            Thread t = new Thread(() -> {
+                try { if (ch != null) { ch.unregisterObserver(); ch.close(); } } catch (Throwable ignored) { }
+                try { if (p != null) p.close(); } catch (Throwable ignored) { }
+            }, "openhouse close");
+            t.setDaemon(true);
+            t.start();
+            Thread b = new Thread(again::begin, "openhouse link");
+            b.setDaemon(true);
+            b.start();
         }
 
         @Override public void onIceCandidate(RTCIceCandidate c) {
