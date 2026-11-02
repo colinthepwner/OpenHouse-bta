@@ -1,91 +1,80 @@
 # OpenHouse (OH)
-
 ![OpenHouse](art/openhouse-logo-x8.png)
 
-Play Better than Adventure with your friends using a room code. No port forwarding, no IP
-addresses, and your friends get your mods automatically. Want a world that stays up when you're
-not playing? OpenHost is a whole server in one file.
+Easily launch a BTA! server for you and your friends, zero port forwarding.
 
-Made for BTA 8.0.1 with Babric/Fabric. Get the mod, OpenHost and the helper from
-[Releases](https://github.com/colinthepwner/OpenHouse-bta/releases).
+## Which download do I need?
 
-## Playing with friends
+| I want to... | Get this |
+|---|---|
+| Play with friends, the easy way | **[OpenHouse BTA Instance](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHouse-BTA-Instance.zip)**. In Prism Launcher, click **Add Instance**, then **Import**, and pick the zip. |
+| Add OpenHouse to the BTA! I already play | The mod, `openhouse-<version>.jar` from [Releases](https://github.com/colinthepwner/OpenHouse-bta/releases/latest). It goes in your `mods` folder (needs Babric). |
+| Run a server that's always online | **[OpenHost.jar](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHost.jar)** |
+| Join or host without a mod loader | **[openhouse-helper.jar](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/openhouse-helper.jar)** (see [No mod loader?](#no-mod-loader)) |
 
-1. Put the mod in your `mods` folder and open a single-player world.
-2. Press Esc and click **Open to Friends**.
-3. Your room code shows up in chat. Send it to your friends.
+# Ad Hoc
+This method lets you run a temporary server from any singleplayer world.\
+If you just want a quick session with your friends, this is the simplest way.
 
-When you're done, press Esc and click **Close World**. Everything's saved, and you can keep
-playing the world on your own.
+Step by step:
 
-## Joining a friend
+- Launch the game with the mod loaded, or use the [instance](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHouse-BTA-Instance.zip).
+- Create or join a singleplayer world.
+- Press ESC, then click "Open to friends".
+- Wait while everything loads.
+- You will be given a room code that your friends must enter in the multiplayer menu.
+- You can copy and paste the room code from the ESC menu.
+- Closing the world will shut down the room and save your progress.
 
-1. Put the mod in your `mods` folder.
-2. Go to **Multiplayer**, pick **Room Code**, type the code and click **Join**.
+Make sure everyone trying to connect is using the mod, and things should just work.
 
-If your friend has mods you don't, OH offers to grab them and restart the game with them. Your
-own `mods` folder stays the way it was. Only take mods from people you trust.
+You can load additional mods by simply adding mod.jar to your minecraft/mods folder before loading the world.\
+Only the host needs to worry about adding mods; connecting friends automatically download the mods they need.
 
-## Running a server: OpenHost
+# Always Online Server
+OpenHost.jar works as an alternative to the BTA! server.jar, with a more pleasant frontend.\
+If you need a server running even when you're not playing, this is the best method.
 
-`OpenHost.jar` is a whole BTA 8.0.1 server, for a world your friends can join any time, even
-when you're not playing. Put it in a folder and run it:
+**Connecting clients still need the mod or the instance loaded to join your OpenHost server.**\
+Everything can be found in [Releases](https://github.com/colinthepwner/OpenHouse-bta/releases/latest).
 
-    java -jar OpenHost.jar
+Just place OpenHost.jar in a folder and double-click it; the rest should be self-explanatory.
 
-(or just double-click it). The first start downloads what it needs, then the console shows the
-room code people join with. It's a new one every time the server starts. To keep one, pick
-your own: type `oh set MYWORLD` in the console. Picked codes are 6 to 16 letters or digits. If
-another server is already using yours, the console tells you so you can pick another.
+- The room code is new every time the server starts. To keep one, type `oh set MYWORLD` in the
+  console (6 to 16 letters or digits). If another server already uses it, OpenHost tells you.
+- Mods go in its `mods` folder like on any server, and players who join get them.
+- Its Settings tab sets a password, a whitelist and the server's memory.
+- Prefer BTA!'s classic server window, or none at all? Set `openhost-ui` to `classic` or
+  `console` in `server.properties`.
+- Needs Java 17 or newer. OpenHost keeps itself up to date.
 
-Its window shows the room code, who's on and the console. Commands can be typed loosely, like
-`give steve 64 oak planks` or `tp steve to alex`, and Tab finishes what you're typing. Prefer
-BTA's classic server window, or no window at all? Set `openhost-ui` to `classic` or `console` in
-`server.properties`.
+# Joining
+- Load the mod or the [instance](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHouse-BTA-Instance.zip).
+- Go to **Multiplayer**, pick **Room Code**, type the code and click **Join**.
+- If the host has mods you don't, OH offers to grab them and restart the game with them. Your own
+  `mods` folder stays the way it was. Only take mods from people you trust.
 
-Its Settings tab also sets the server's password and whitelist (see below) and how much memory
-the server gets, with a button to restart it.
+# Passwords and whitelists
+- `/oh password <password>` in your opened world or the server console. Friends type it once when
+  they join. `/oh password off` removes it.
+- `/oh whitelist on`, then `/oh whitelist add <name>` lets in only the players you list. It goes by
+  name, so use a password if it really matters.
+- Players without the mod can't join a world or server that has a password.
 
-Mods go in its `mods` folder like on any server, and players who join get them, along with the
-server's mod settings. You can drop a whole modpack's mods in: ones that only work in a player's
-own game are set aside (renamed to `.disabled`) and the console says which. OpenHost keeps itself
-up to date. Needs Java 17 or newer.
+# No mod loader?
+`openhouse-helper.jar` works with any BTA! version, no Fabric needed:
 
-## Already have a Babric server?
+- To join: run `java -jar openhouse-helper.jar join K7QXD`, then Direct Connect to the address it
+  shows. You can also just double-click it.
+- To host: start your server, then run `java -jar openhouse-helper.jar host` in its folder. For a
+  code that stays the same, add the address and your own: `host localhost:25565 MYWORLD`.
 
-Put the mod in its `mods` folder. The room code shows up in the console, and it's a new one every
-time the server starts unless you pick your own with `/oh set <name>`. Type `/oh` to see it. Ops
-can also use `/oh new`, `/oh on` and `/oh off`.
-
-The server keeps OpenHouse up to date by itself; a new version goes in the next time it restarts.
-
-## Passwords and whitelists
-
-To keep out people who only have the code, give your world or server a password: type
-`/oh password <password>` in your opened world or in the server console. Friends with OpenHouse
-type it once when they join, and you can change it any time without kicking anyone.
-`/oh password off` removes it.
-
-A whitelist lets in only the players you list: `/oh whitelist on`, then
-`/oh whitelist add <name>`. It goes by name, so friends without a Minecraft account can be on it
-too. A name is easy to borrow, though, so use a password if it really matters.
-
-Players without the mod can't join a world or server that has a password.
-
-## No mod loader?
-
-`openhouse-helper.jar` works with any BTA version, no Fabric needed:
-
-- To join: run `java -jar openhouse-helper.jar join K7QXD`, then Direct Connect to the address
-  it shows. You can also just double-click it.
-- To host: start your server, then run `java -jar openhouse-helper.jar host` in its folder. For
-  a code that stays the same, add the address and your own: `host localhost:25565 MYWORLD`.
-
-The helper doesn't hand out mods, so everyone needs the same ones. It updates itself when a new
-version is out.
+The helper doesn't hand out mods, so everyone needs the same ones.
 
 ## Good to know
 
+- OpenHouse can be added to your existing Babric server: put the mod in its `mods` folder and
+  type `/oh` in the console for the code.
 - Everyone in a world needs the same version of OpenHouse. When a new one is out, OH tells you
   and can update itself with one click.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
