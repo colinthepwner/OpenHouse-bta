@@ -321,6 +321,7 @@ public final class ServerRoom {
         };
         self[0] = h;
         host = h;
+        h.pool(FabricLoader.getInstance().getGameDir().toFile(), shareFolders);
         h.start();
     }
 
@@ -460,6 +461,8 @@ public final class ServerRoom {
         if (on) startHost(); else stopHost();
     }
 
+    volatile String shareFolders = openhouse.ShareFolders.DEFAULT;
+
     private void load() {
         Properties p = new Properties();
         if (file.isFile()) {
@@ -475,6 +478,8 @@ public final class ServerRoom {
         if (!c.isEmpty() && code.isEmpty()) LOG.warn("code \"{}\" in {} isn't a room code (6-16 letters/digits) - picking one", c, file.getName());
         address = p.getProperty("address", "").trim();
         token = p.getProperty("token", "").trim();
+
+        shareFolders = p.getProperty(openhouse.ShareFolders.SETTING, openhouse.ShareFolders.DEFAULT).trim();
 
         if (!Rtc.isPicked(code)) {
             code = "";
@@ -622,6 +627,11 @@ public final class ServerRoom {
                     + "# Offer this server's mods to players who join by code, so they play with the same\n"
                     + "# mods (they're asked first). true or false\n"
                     + "shareMods=" + shareMods + "\n"
+                    + "\n"
+                    + "# Folders of a mod's own beside this server that players may add to, so everyone\n"
+                    + "# can use what anyone brought - BTEmu's game cartridges, for instance. Folder\n"
+                    + "# names separated by commas, or off for none.\n"
+                    + openhouse.ShareFolders.SETTING + "=" + shareFolders + "\n"
                     + "\n"
                     + "# Download newer OpenHouse versions by itself; they go in when the server stops.\n"
                     + "# true or false\n"

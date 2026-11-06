@@ -58,6 +58,9 @@ public final class HostMain {
     static final boolean DEBUG = System.getenv("OPENHOUSE_DEBUG") != null;
     static void debug(String s) { if (DEBUG) log(String.format("%tT.%<tL %s", System.currentTimeMillis(), s)); }
 
+    static volatile java.io.File poolRoot;
+    static volatile java.util.List<String> poolFolders = java.util.Collections.emptyList();
+
     static volatile String shareJson;
     static final Map<String, java.io.File> shareFiles = new ConcurrentHashMap<>();
     static final String MODS_LABEL = "openhouse-mods";
@@ -88,6 +91,16 @@ public final class HostMain {
         String token = args.length > 2 && !args[2].isEmpty() ? args[2] : Long.toString(rnd.nextLong() & Long.MAX_VALUE, 36);
 
         if (args.length > 3 && !args[3].isEmpty()) loadShare(new java.io.File(args[3]));
+
+        if (args.length > 4 && !args[4].isEmpty()) {
+            String[] pool = args[4].split("\t");
+            java.util.List<String> fs = openhouse.ShareFolders.folders(pool.length > 1 ? pool[1] : null);
+            if (!pool[0].isEmpty() && !fs.isEmpty()) {
+                poolRoot = new java.io.File(pool[0]);
+                poolFolders = fs;
+                log("players may add to this server's " + String.join(", ", fs) + " folder" + (fs.size() == 1 ? "" : "s"));
+            }
+        }
 
         Thread watch = new Thread(() -> {
             try { while (System.in.read() >= 0) { } } catch (IOException ignored) { }
@@ -364,6 +377,11 @@ public final class HostMain {
                         }
                         sendText("DONE " + sha);
                         sent++;
+                    } else if (cmd.startsWith("FOLDERS")) {
+
+                        sendText(wantedFrom(cmd));
+                    } else if (cmd.startsWith("FPUT ")) {
+                        takeFile(cmd);
                     }
                 }
             } catch (Exception e) {
@@ -372,6 +390,72 @@ public final class HostMain {
                 if (sent > 0) log("sent " + sent + " mod file" + (sent == 1 ? "" : "s") + " to a joiner");
                 close();
             }
+        }
+
+        long accepted;
+        final java.util.Map<String, long[]> wanted = new java.util.HashMap<>();
+        final java.util.Map<String, String> wantedPath = new java.util.HashMap<>();
+
+        String wantedFrom(String cmd) {
+            java.io.File root = poolRoot;
+            java.util.List<String> folders = poolFolders;
+            if (root == null || folders.isEmpty()) return "WANT";
+            java.util.Set<String> here = new java.util.HashSet<>();
+            for (openhouse.ShareFolders.Item it : openhouse.ShareFolders.scan(root, folders)) here.add(it.sha256);
+            StringBuilder b = new StringBuilder("WANT");
+            int n = cmd.indexOf('\n');
+            if (n < 0) return b.toString();
+            long room = openhouse.ShareFolders.MAX_TOTAL - accepted;
+            for (String line : cmd.substring(n + 1).split("\n")) {
+                String[] f = line.trim().split(" ", 3);
+                if (f.length < 3) continue;
+                String sha = f[0];
+                long size;
+                try { size = Long.parseLong(f[1]); } catch (NumberFormatException e) { continue; }
+                String path = openhouse.ShareFolders.safePath(f[2], folders);
+                if (path == null || !sha.matches("[0-9a-f]{64}") || size <= 0 || size > openhouse.ShareFolders.MAX_FILE) continue;
+                if (here.contains(sha) || wanted.containsKey(sha) || size > room) continue;
+                if (wanted.size() >= openhouse.ShareFolders.MAX_FILES) break;
+                wanted.put(sha, new long[] { size });
+                wantedPath.put(sha, path);
+                room -= size;
+                b.append('\n').append(sha).append(' ').append(size).append(' ').append(path);
+            }
+            return b.toString();
+        }
+
+        void takeFile(String cmd) throws Exception {
+            String[] f = cmd.substring(5).trim().split(" ", 3);
+            if (f.length < 3) { sendText("FNO - malformed"); return; }
+            String sha = f[0];
+            long[] want = wanted.get(sha);
+            String path = wantedPath.get(sha);
+            long size;
+            try { size = Long.parseLong(f[1]); } catch (NumberFormatException e) { sendText("FNO " + sha + " size"); return; }
+            if (want == null || path == null || size != want[0] || !path.equals(openhouse.ShareFolders.safePath(f[2], poolFolders))) {
+                sendText("FNO " + sha + " not asked for");
+                return;
+            }
+            sendText("FOK " + sha);
+            byte[] bytes = new byte[(int) size];
+            int got = 0;
+            while (got < size && !closed) {
+                byte[] b = toServer.poll(30, java.util.concurrent.TimeUnit.SECONDS);
+                if (b == null) throw new java.io.IOException("the transfer of " + path + " stalled");
+                if (b.length == 0) throw new java.io.IOException("the player left during " + path);
+                if (got + b.length > size) throw new java.io.IOException("too many bytes for " + path);
+                System.arraycopy(b, 0, bytes, got, b.length);
+                got += b.length;
+            }
+            if (closed) return;
+            if (!openhouse.Rtc.sha256(bytes).equals(sha)) { sendText("FNO " + sha + " damaged"); return; }
+            wanted.remove(sha);
+            wantedPath.remove(sha);
+            accepted += size;
+            java.io.File dest = openhouse.ShareFolders.receive(poolRoot, path, bytes, sha);
+            sendText("FGOT " + sha);
+
+            if (dest != null) log("a player added " + path + (dest.getName().equals(new java.io.File(path).getName()) ? "" : " (as " + dest.getName() + ")") + " to this server");
         }
 
         void refuse() {

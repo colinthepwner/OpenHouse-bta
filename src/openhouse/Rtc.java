@@ -215,6 +215,18 @@ public final class Rtc {
         return f;
     }
 
+    public static String sha256(byte[] data) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            md.update(data);
+            StringBuilder b = new StringBuilder();
+            for (byte x : md.digest()) b.append(String.format("%02x", x & 0xff));
+            return b.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     public static String sha256(File f) throws IOException {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");

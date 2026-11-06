@@ -222,6 +222,10 @@ public final class OpenHouseMod implements ClientModInitializer {
         return p;
     }
 
+    public static String shareFoldersSetting() {
+        return settings().getProperty(openhouse.ShareFolders.SETTING, openhouse.ShareFolders.DEFAULT).trim();
+    }
+
     static void rememberCode(String code) {
         Properties p = settings();
         if (code.equals(p.getProperty("lastCode"))) return;

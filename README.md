@@ -90,6 +90,9 @@ The helper doesn't hand out mods, so everyone needs the same ones.
   your mod settings along with your mods.
 - If a mod crashes your open world, OH tells you which one, and keeps it out of the server next
   time if it only belongs in your own game.
+- A folder a mod keeps beside the game - BTEmu's `roms`, say - goes to your world's server, and
+  players can add their own, so everyone can use what anyone brought. `share-folders` in
+  `openhouse.properties` names the folders (`roms` by default, `off` for none).
 - With BTA's Discord presence on, click your room code in the pause menu to show it on your
   Discord profile so friends can press Join.
 - The first time you use it, it downloads a couple of things it needs.
