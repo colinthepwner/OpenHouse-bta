@@ -34,6 +34,7 @@ gui.openhouse.lan.lost.saved=Your world is saved and closed.
 gui.openhouse.lan.announce=Your world is open to friends! Room code: %s
 gui.openhouse.lan.crashed=Your world crashed
 gui.openhouse.lan.crashed.mod=It happened in %s.
+gui.openhouse.lan.crashed.leftout=%s only works in your own game - next time it stays out of the server.
 gui.openhouse.lan.crashed.details=Everything it printed is in openhouse/server/console.log
 gui.openhouse.mods.checking=Checking the host's mods...
 gui.openhouse.mods.missing=This world uses %d mods you don't have (%s):
