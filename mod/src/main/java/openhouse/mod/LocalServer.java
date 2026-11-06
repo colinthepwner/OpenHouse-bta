@@ -174,6 +174,14 @@ public final class LocalServer {
             handOver(mods, base, world, gate);
 
             copyConfigs(new File(FabricLoader.getInstance().getGameDir().toFile(), "config"), new File(dir, "config"));
+
+            List<String> shared = openhouse.ShareFolders.folders(OpenHouseMod.shareFoldersSetting());
+            if (!shared.isEmpty()) {
+                int added = openhouse.ShareFolders.fill(FabricLoader.getInstance().getGameDir().toFile(), dir, shared,
+                        m -> OpenHouseMod.LOG.warn("Open to Friends: {}", m));
+                if (added > 0) OpenHouseMod.LOG.info("gave the server {} file{} from your {} folder{}", added, added == 1 ? "" : "s",
+                        String.join(", ", shared), shared.size() == 1 ? "" : "s");
+            }
             Runtime.getRuntime().addShutdownHook(new Thread(() -> stopAndWait(30000), "openhouse local server stop"));
 
             Map<String, String> crashers = ServerMods.serverCrashers(mods);
@@ -301,6 +309,8 @@ public final class LocalServer {
             cmd.add("-Dopenhouse.shareManifest=" + share.getAbsolutePath());
             cmd.add("-Dopenhouse.worldGate=" + gate.getAbsolutePath());
             cmd.add("-Dopenhouse.lan=1");
+
+            cmd.add("-Dopenhouse.gameDir=" + FabricLoader.getInstance().getGameDir().toFile().getAbsolutePath());
             cmd.add("-Dopenhouse.dataDir=" + OpenHouseMod.dataDir().getAbsolutePath());
             cmd.add("-Dopenhouse.parentPid=" + ProcessHandle.current().pid());
             cmd.add("-cp");

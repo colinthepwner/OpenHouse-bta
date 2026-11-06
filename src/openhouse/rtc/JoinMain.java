@@ -107,7 +107,7 @@ public final class JoinMain {
                 String line;
                 while ((line = r.readLine()) != null) {
                     if (line.trim().equalsIgnoreCase("PROBE")) startProbe();
-                    else if (line.startsWith("MOD")) modCommand(line);
+                    else if (line.startsWith("MOD") || line.startsWith("FOLDERS")) modCommand(line);
                 }
             } catch (IOException ignored) { }
             System.exit(0);
@@ -304,6 +304,9 @@ public final class JoinMain {
                                 modGet(item.substring(0, c), item.substring(c + 1), dir);
                             }
                         out("MODSDONE");
+                    } else if (line.startsWith("FOLDERS\t")) {
+                        String[] parts = line.split("\t");
+                        out("FOLDERSDONE " + offerFolders(new java.io.File(parts[1]), parts.length > 2 ? parts[2] : null));
                     } else if (line.equals("MODCLOSE")) {
                         modDrop();
                     }
@@ -341,6 +344,58 @@ public final class JoinMain {
         Link l = modLink;
         if (l == null || l.dc == null) throw new IOException("mod connection closed");
         l.dc.send(new RTCDataChannelBuffer(ByteBuffer.wrap(text.getBytes(StandardCharsets.UTF_8)), false));
+    }
+
+    static int offerFolders(java.io.File root, String setting) throws Exception {
+        java.util.List<String> folders = openhouse.ShareFolders.folders(setting);
+        if (folders.isEmpty()) return 0;
+        java.util.List<openhouse.ShareFolders.Item> items = openhouse.ShareFolders.scan(root, folders);
+        if (items.isEmpty()) return 0;
+        int sent = 0;
+        for (int from = 0; from < items.size(); from += 150) {
+            java.util.List<openhouse.ShareFolders.Item> round = items.subList(from, Math.min(items.size(), from + 150));
+            modConnect();
+            modSend("FOLDERS\n" + openhouse.ShareFolders.offer(round));
+            Object[] m = modInbox.poll(30, java.util.concurrent.TimeUnit.SECONDS);
+            if (m == null) throw new IOException("the host didn't answer about shared folders");
+            if ((Boolean) m[0]) return sent;
+            String answer = new String((byte[]) m[1], StandardCharsets.UTF_8).trim();
+            if (!answer.startsWith("WANT")) return sent;
+            java.util.Set<String> want = new java.util.HashSet<>();
+            for (String l : answer.split("\n")) {
+                String[] f = l.trim().split(" ", 3);
+                if (f.length == 3 && f[0].matches("[0-9a-f]{64}")) want.add(f[0]);
+            }
+            for (openhouse.ShareFolders.Item it : round) {
+                if (!want.contains(it.sha256)) continue;
+                if (sendFile(it)) sent++;
+            }
+        }
+        return sent;
+    }
+
+    static boolean sendFile(openhouse.ShareFolders.Item it) throws Exception {
+        modSend("FPUT " + it.sha256 + " " + it.size + " " + it.path);
+        Object[] ok = modInbox.poll(30, java.util.concurrent.TimeUnit.SECONDS);
+        if (ok == null) throw new IOException("the host didn't answer about " + it.path);
+        if ((Boolean) ok[0]) throw new IOException("unexpected bytes while offering " + it.path);
+        String head = new String((byte[]) ok[1], StandardCharsets.UTF_8).trim();
+        if (!head.startsWith("FOK ")) return false;
+        Link l = modLink;
+        if (l == null || l.dc == null) throw new IOException("mod connection closed");
+        try (InputStream in = new java.io.FileInputStream(it.file)) {
+            byte[] buf = new byte[16384];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                while (!l.closed && l.dc.getBufferedAmount() > MAX_BUFFERED) Thread.sleep(5);
+                if (l.closed) throw new IOException("the connection closed during " + it.path);
+                l.dc.send(new RTCDataChannelBuffer(ByteBuffer.wrap(java.util.Arrays.copyOf(buf, n)), true));
+            }
+        }
+        Object[] done = modInbox.poll(60, java.util.concurrent.TimeUnit.SECONDS);
+        if (done == null) throw new IOException("the host didn't confirm " + it.path);
+        String word = (Boolean) done[0] ? "" : new String((byte[]) done[1], StandardCharsets.UTF_8).trim();
+        return word.startsWith("FGOT ");
     }
 
     static void modGet(String sha, String file, java.io.File dir) throws Exception {

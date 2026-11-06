@@ -46,6 +46,13 @@ public final class Host {
         this.saver = saver;
     }
 
+    private String pool = "";
+
+    public Host pool(java.io.File serverFolder, String setting) {
+        pool = serverFolder == null ? "" : serverFolder.getAbsolutePath() + "\t" + (setting == null ? "" : setting);
+        return this;
+    }
+
     public void start() {
         Thread t = new Thread(this::run, "openhouse host");
         t.setDaemon(true);
@@ -66,7 +73,7 @@ public final class Host {
             while (!stopping) {
                 long started = System.currentTimeMillis();
                 Process p = Rtc.start(self, libs, "openhouse.rtc.HostMain",
-                        Arrays.asList(code, target, token, shareManifest == null ? "" : shareManifest.getAbsolutePath()));
+                        Arrays.asList(code, target, token, shareManifest == null ? "" : shareManifest.getAbsolutePath(), pool));
                 child = p;
                 OutputStream keep = p.getOutputStream();
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));

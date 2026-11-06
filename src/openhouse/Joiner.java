@@ -110,6 +110,14 @@ public final class Joiner {
         if (!send("MODGET\t" + dir.getAbsolutePath() + "\t" + b)) { modState = ModState.FAILED; modError = "the room connection isn't running"; }
     }
 
+    public volatile int foldersShared = -1;
+    public volatile String foldersError = "";
+
+    public void shareFolders(File gameDir, String setting) {
+        foldersShared = -1;
+        send("FOLDERS\t" + gameDir.getAbsolutePath() + "\t" + (setting == null ? "" : setting));
+    }
+
     public void downloadClose() {
         send("MODCLOSE");
     }
@@ -259,7 +267,13 @@ public final class Joiner {
                 modState = ModState.DONE;
                 set(state, detail);
                 break;
+            case "FOLDERSDONE":
+                try { foldersShared = Integer.parseInt(rest.trim()); } catch (NumberFormatException e) { foldersShared = 0; }
+                if (foldersShared > 0) log.accept("added " + foldersShared + " file" + (foldersShared == 1 ? "" : "s") + " of your own to the world's shared folders");
+                break;
             case "MODSFAIL":
+
+                if (foldersShared < 0) { foldersError = rest; foldersShared = 0; }
                 modError = rest;
                 modState = ModState.FAILED;
                 log.accept("mods: " + rest);

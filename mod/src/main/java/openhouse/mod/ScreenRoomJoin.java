@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
+import net.fabricmc.loader.api.metadata.ModOrigin;
 import net.minecraft.client.gui.ButtonElement;
 import net.minecraft.client.gui.Screen;
 import net.minecraft.client.gui.ScreenConnecting;
@@ -24,7 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.lwjgl.input.Keyboard;
 
 public final class ScreenRoomJoin extends Screen {
-    private enum Phase { LOOKUP, CHECK, PACKS, PACKS_GOT, VERSION, ASK, DOWNLOAD, RESTART, FAILED, CONNECT }
+    private enum Phase { LOOKUP, CHECK, OWN, PACKS, PACKS_GOT, VERSION, ASK, DOWNLOAD, RESTART, FAILED, CONNECT }
 
     private final String code;
     private final Joiner joiner;
@@ -36,6 +37,10 @@ public final class ScreenRoomJoin extends Screen {
     private ButtonElement back, retry, download, anyway, update;
     private boolean hostOlder;
     private long checkStarted;
+
+    private volatile List<ModShare.Mod> ownMissing;
+    private final Set<String> rebuilt = java.util.Collections.synchronizedSet(new HashSet<>());
+    private long ownStarted;
 
     public ScreenRoomJoin(Screen parent, String code) {
         super(parent);
@@ -85,15 +90,26 @@ public final class ScreenRoomJoin extends Screen {
                     }
                     hostMods = joiner.modList;
                     missing = missingMods(hostMods);
-                    packsWanted = packsToFetch(hostMods);
-                    if (!packsWanted.isEmpty()) startPacks();
-                    else afterPacks();
+                    startOwnCheck();
                 } else if (joiner.modState == Joiner.ModState.FAILED || System.currentTimeMillis() - checkStarted > 30000) {
 
                     OpenHouseMod.LOG.warn("couldn't get room {}'s mod list ({}), joining without it", code, joiner.modError);
                     connect();
                 }
                 break;
+            case OWN: {
+
+                List<ModShare.Mod> own = ownMissing;
+                boolean late = System.currentTimeMillis() - ownStarted > 20000;
+                if (own != null || late) {
+                    if (own != null) missing = own;
+                    else OpenHouseMod.LOG.info("reading this game's own mod jars is taking too long - going by mod versions alone");
+                    packsWanted = packsToFetch(hostMods);
+                    if (!packsWanted.isEmpty()) startPacks();
+                    else afterPacks();
+                }
+                break;
+            }
             case PACKS:
                 if (joiner.modState == Joiner.ModState.DONE) {
                     placePacks();
@@ -221,7 +237,75 @@ public final class ScreenRoomJoin extends Screen {
 
         if (getParentScreen() instanceof ScreenSelectServer) ((ScreenSelectServer) getParentScreen()).freeResources();
         OpenHouseMod.LOG.info("room {} found, connecting through 127.0.0.1:{}", code, joiner.port);
+        offerOwnFolders();
         mc.displayScreen(new ScreenConnecting(mc, "127.0.0.1", joiner.port));
+    }
+
+    private void offerOwnFolders() {
+        try {
+            if (openhouse.ShareFolders.folders(OpenHouseMod.shareFoldersSetting()).isEmpty()) return;
+            joiner.shareFolders(FabricLoader.getInstance().getGameDir().toFile(), OpenHouseMod.shareFoldersSetting());
+        } catch (Throwable t) {
+            OpenHouseMod.LOG.info("couldn't offer this game's shared folders to the room ({})", t.toString());
+        }
+    }
+
+    private void startOwnCheck() {
+        phase = Phase.OWN;
+        ownStarted = System.currentTimeMillis();
+        List<ModShare.Mod> host = hostMods;
+        Thread t = new Thread(() -> {
+            List<ModShare.Mod> out;
+            try {
+                out = reallyMissing(host, rebuilt);
+            } catch (Throwable e) {
+                OpenHouseMod.LOG.info("couldn't read this game's own mod jars ({}) - going by mod versions alone", e.toString());
+                out = missingMods(host);
+            }
+            ownMissing = out;
+        }, "openhouse own mods check");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    static List<ModShare.Mod> reallyMissing(List<ModShare.Mod> host, Set<String> rebuilt) throws java.io.IOException {
+        Map<String, String> have = new HashMap<>();
+        Map<String, File> jarOf = new HashMap<>();
+        File folder = LocalServer.modsFolder().getAbsoluteFile();
+        for (ModContainer c : FabricLoader.getInstance().getAllMods()) {
+            String id = c.getMetadata().getId();
+            have.put(id, c.getMetadata().getVersion().getFriendlyString());
+            ModOrigin o;
+            try { o = c.getOrigin(); } catch (Throwable t) { continue; }
+            if (o.getKind() != ModOrigin.Kind.PATH) continue;
+            for (java.nio.file.Path p : o.getPaths()) {
+                File f = p.toFile().getAbsoluteFile();
+
+                if (f.isFile() && f.getName().toLowerCase().endsWith(".jar") && folder.equals(f.getParentFile())) jarOf.put(id, f);
+            }
+        }
+        Map<File, String> sha = new HashMap<>();
+        Set<String> mine = new HashSet<>();
+        File[] files = folder.listFiles((d, n) -> n.toLowerCase().endsWith(".jar"));
+        if (files != null) for (File f : files) {
+            String s = Rtc.sha256(f);
+            sha.put(f.getAbsoluteFile(), s);
+            mine.add(s);
+        }
+        List<ModShare.Mod> out = new ArrayList<>();
+        for (ModShare.Mod m : host) {
+            if (OpenHouseMod.MOD_ID.equals(m.id)) continue;
+            if (m.id != null && m.id.startsWith("openhouse:")) continue;
+            if (m.sha256 != null && mine.contains(m.sha256)) continue;
+            if (m.version == null || !m.version.equals(have.get(m.id))) { out.add(m); continue; }
+            File own = jarOf.get(m.id);
+            String ours = own == null ? null : sha.get(own.getAbsoluteFile());
+            if (ours == null || ours.equals(m.sha256)) continue;
+            out.add(m);
+            if (m.sha256 != null) rebuilt.add(m.sha256);
+            OpenHouseMod.LOG.info("{} {} is here as {}, but the host's is a different build - getting theirs", m.id, m.version, own.getName());
+        }
+        return out;
     }
 
     static List<ModShare.Mod> missingMods(List<ModShare.Mod> host) {
@@ -304,6 +388,9 @@ public final class ScreenRoomJoin extends Screen {
             case CHECK:
                 lines.add(t.translateKey("gui.openhouse.mods.checking"));
                 break;
+            case OWN:
+                lines.add(t.translateKey("gui.openhouse.mods.checkingown"));
+                break;
             case VERSION: {
                 String hv = Version.base(joiner.hostVersion);
                 lines.add(hv == null ? t.translateKeyAndFormat("gui.openhouse.version.older", Version.VERSION)
@@ -319,7 +406,8 @@ public final class ScreenRoomJoin extends Screen {
                 int shown = 0;
                 for (ModShare.Mod m : missing) {
                     if (shown++ == 4 && missing.size() > 5) { lines.add(t.translateKeyAndFormat("gui.openhouse.mods.more", missing.size() - 4)); break; }
-                    lines.add("§7" + m.name + " " + m.version);
+                    lines.add("§7" + m.name + " " + m.version
+                            + (rebuilt.contains(m.sha256) ? " §8(" + t.translateKey("gui.openhouse.mods.differentbuild") + ")" : ""));
                 }
                 lines.add("§6" + t.translateKey("gui.openhouse.mods.trust"));
                 color = 0xFFFFFF;
