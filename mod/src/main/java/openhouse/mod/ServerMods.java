@@ -91,11 +91,22 @@ public final class ServerMods {
         }
     }
 
-    static List<Entry> forServer(List<Entry> all, Map<String, String> skip, List<Entry> leftOut) {
+    static Map<String, String> serverCrashers(List<Entry> all) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (Boolean.getBoolean("openhouse.allServerMods")) return out;
+        for (Entry e : all) {
+            if (e.clientOnly) continue;
+            String why = ClientCode.serverCrasher(e.jar);
+            if (why != null) out.put(e.id, why);
+        }
+        return out;
+    }
+
+    static List<Entry> forServer(List<Entry> all, Map<String, String> skip, Map<String, String> crashers, List<Entry> leftOut) {
         List<Entry> in = new ArrayList<>();
         for (Entry e : all) {
             if (e.clientOnly) continue;
-            if (e.version.equals(skip.get(e.id))) { leftOut.add(e); continue; }
+            if (e.version.equals(skip.get(e.id)) || crashers.containsKey(e.id)) { leftOut.add(e); continue; }
             in.add(e);
         }
         return in;

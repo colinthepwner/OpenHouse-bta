@@ -41,6 +41,8 @@ public final class LocalServer {
 
     public volatile String crash;
     public volatile String crashMod;
+
+    public volatile String crashLeftOut;
     volatile boolean crashShown;
 
     volatile boolean hostIn;
@@ -174,9 +176,12 @@ public final class LocalServer {
             copyConfigs(new File(FabricLoader.getInstance().getGameDir().toFile(), "config"), new File(dir, "config"));
             Runtime.getRuntime().addShutdownHook(new Thread(() -> stopAndWait(30000), "openhouse local server stop"));
 
+            Map<String, String> crashers = ServerMods.serverCrashers(mods);
+            for (Map.Entry<String, String> c : crashers.entrySet())
+                OpenHouseMod.LOG.info("keeping {} out of the Open to Friends server: {} (it still runs in this game, and friends still get it)", c.getKey(), c.getValue());
             for (int attempt = 1; ; attempt++) {
                 List<ServerMods.Entry> left = new ArrayList<>();
-                List<ServerMods.Entry> in = ServerMods.forServer(mods, ServerMods.remembered(), left);
+                List<ServerMods.Entry> in = ServerMods.forServer(mods, ServerMods.remembered(), crashers, left);
                 List<String> leftNames = new ArrayList<>();
                 Set<String> leftIds = new LinkedHashSet<>();
                 for (ServerMods.Entry e : left) { leftNames.add(e.name); leftIds.add(e.id); }
@@ -380,8 +385,16 @@ public final class LocalServer {
             List<String> tail = new ArrayList<>(recent);
             int from = 0;
             for (int k = tail.size() - 1; k >= 0; k--) if (tail.get(k).contains("/ERROR]")) { from = k; break; }
-            String id = ServerMods.crashMod(tail.subList(from, tail.size()), serverMods);
+            List<String> story = tail.subList(from, tail.size());
+            String id = ServerMods.crashMod(story, serverMods);
             if (id != null) for (ServerMods.Entry e : serverMods) if (e.id.equals(id)) mod = e.name;
+
+            if (id != null && ModCrash.clientOnlyCrash(story)) {
+                for (ServerMods.Entry e : serverMods) if (e.id.equals(id)) {
+                    ServerMods.remember(java.util.Collections.singletonMap(e.id, e.version));
+                    crashLeftOut = e.name;
+                }
+            }
         } catch (Throwable t) {
             OpenHouseMod.LOG.warn("couldn't tell which mod the server crashed in: {}", t.toString());
         }

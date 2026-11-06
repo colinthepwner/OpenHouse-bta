@@ -86,6 +86,12 @@ public final class ScreenOpenToFriends extends Screen {
                 drawStringCenteredShadow(fontRenderer, l, cx, ly, 0xFF6060);
                 ly += 11;
             }
+
+            String out = server.crashLeftOut;
+            if (out != null) {
+                drawStringCenteredShadow(fontRenderer, t.translateKeyAndFormat("gui.openhouse.lan.crashed.leftout", out), cx, ly + 6, 0xFFFFFF);
+                ly += 17;
+            }
             drawStringCenteredShadow(fontRenderer, t.translateKey("gui.openhouse.lan.crashed.details"), cx, ly + 6, 0xA0A0A0);
             super.render(mx, my, partialTick);
             return;

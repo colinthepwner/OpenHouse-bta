@@ -61,6 +61,8 @@ public final class OpenHost {
         File mods = new File(here, "mods");
         if (!mods.isDirectory() && !mods.mkdirs()) say("(can't create " + mods + " - starting without a mods folder)");
 
+        setAsideServerCrashers(mods);
+
         new File(here, "texturepacks").mkdirs();
 
         String ui = uiMode(here, pass);
@@ -203,6 +205,24 @@ public final class OpenHost {
             }
         }
         return any;
+    }
+
+    static void setAsideServerCrashers(File mods) {
+        if (Boolean.getBoolean("openhouse.allServerMods")) return;
+        File[] jars = mods.listFiles((d, n) -> n.toLowerCase(java.util.Locale.ROOT).endsWith(".jar"));
+        if (jars == null) return;
+        Arrays.sort(jars);
+        for (File j : jars) {
+            if (UpdateSwap.isOpenHouseMod(j)) continue;
+            String why = ClientCode.serverCrasher(j);
+            if (why == null) continue;
+            File off = new File(mods, j.getName() + ".disabled");
+            if (off.exists()) off.delete();
+            if (j.renameTo(off))
+                say("mods/" + j.getName() + " is for players' own games: " + why + ", which a server hasn't got - it would crash the server as soon as it ran. Set it aside as " + off.getName() + ".");
+            else
+                say("mods/" + j.getName() + " can't run on a server (" + why + "), and it can't be renamed - take it out of mods/.");
+        }
     }
 
     static boolean setAsideCulprits(File mods, List<String> lines) {

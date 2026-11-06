@@ -88,7 +88,8 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 - Two people can't play under the same name at once.
 - Mods that only work in the game stay out of your world's server by themselves, and friends get
   your mod settings along with your mods.
-- If a mod crashes your open world, OH tells you which one.
+- If a mod crashes your open world, OH tells you which one, and keeps it out of the server next
+  time if it only belongs in your own game.
 - With BTA's Discord presence on, click your room code in the pause menu to show it on your
   Discord profile so friends can press Join.
 - The first time you use it, it downloads a couple of things it needs.
