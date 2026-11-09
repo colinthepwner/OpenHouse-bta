@@ -110,7 +110,9 @@ public final class ShareFolders {
         if (!allowed) return null;
         if (GAMES_OWN.contains(parts[0].toLowerCase(Locale.ROOT)) || NEVER.contains(parts[0].toLowerCase(Locale.ROOT))) return null;
         for (String p : parts) {
-            if (p.isEmpty() || p.equals(".") || p.equals("..") || p.startsWith(".") || !p.matches("[A-Za-z0-9._+\\-() ]{1,80}")) return null;
+
+            if (p.isEmpty() || p.equals(".") || p.equals("..") || p.startsWith(".") || !p.matches("[A-Za-z0-9._+\\-() ,'!&\\[\\]]{1,80}")) return null;
+            if (p.endsWith(" ") || p.endsWith(".")) return null;
 
             String bare = p.replaceFirst("\\..*$", "").toUpperCase(Locale.ROOT);
             if (bare.matches("CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9]")) return null;
