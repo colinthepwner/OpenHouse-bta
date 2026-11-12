@@ -229,6 +229,9 @@ public final class LocalServer {
             } catch (InterruptedException e) {
                 return;
             }
+
+            if (state == State.STARTING) detail = "Backing up the world...";
+            WorldGuard.handingOver(world);
             shareManifest(mods, base, world);
             try {
                 java.nio.file.Files.write(gate.toPath(), new byte[0]);
@@ -362,6 +365,11 @@ public final class LocalServer {
                 }
             }
             int exit = p.waitFor();
+
+            if (gate.isFile()) {
+                if (state == State.STOPPING) detail = "Backing up the world...";
+                WorldGuard.backup(world, "after-friends");
+            }
             if (state == State.STOPPING) { set(State.STOPPED, ""); return null; }
             if (state == State.FAILED) return null;
             if (state == State.STARTING) return lines;

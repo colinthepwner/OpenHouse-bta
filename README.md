@@ -86,6 +86,9 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
   that goes with their name.
 - Two people can't play under the same name at once.
+- Your world gets backed up before and after you open it to friends, and once a day when you
+  play it. The backups are in `openhouse/backups`. If something in a world gets broken, OH fixes
+  it the next time you open the world.
 - Mods that only work in the game stay out of your world's server by themselves, and friends get
   your mod settings along with your mods.
 - If a mod crashes your open world, OH tells you which one, and keeps it out of the server next

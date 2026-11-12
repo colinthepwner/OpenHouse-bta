@@ -14,6 +14,13 @@ public abstract class MinecraftMixin {
         OpenHouseMod.singlePlayerWorld = worldDirName;
     }
 
+    @Inject(method = "startWorld", at = @At(value = "INVOKE", target = "Ljava/lang/System;gc()V"))
+    private void openhouse$freshRegions(String worldDirName, CallbackInfo ci) {
+        openhouse.mod.RegionFiles.release();
+
+        openhouse.mod.WorldGuard.beforeOpen((Minecraft) (Object) this, worldDirName);
+    }
+
     @Inject(method = "runTick", at = @At("HEAD"))
     private void openhouse$tick(CallbackInfo ci) {
         OpenHouseMod.clientTick((Minecraft) (Object) this);
