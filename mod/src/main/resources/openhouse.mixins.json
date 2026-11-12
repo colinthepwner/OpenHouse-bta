@@ -20,7 +20,8 @@
     "PacketHandlerClientMixin",
     "DataLoaderMixin",
     "HalpLibeConfigMixin",
-    "RichPresenceMixin"
+    "RichPresenceMixin",
+    "ScreenSelectWorldMixin"
   ],
   "server": [
     "server.MinecraftServerMixin",
