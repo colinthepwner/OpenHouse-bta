@@ -118,7 +118,8 @@ public abstract class ScreenPauseMixin {
             try {
                 mc.changeWorld(null);
             } finally {
-                ls.worldClosed();
+
+                try { openhouse.mod.RegionFiles.release(); } finally { ls.worldClosed(); }
             }
             mc.displayScreen(new ScreenOpenToFriends(ls, false));
         } else if (button.id == COPY) {

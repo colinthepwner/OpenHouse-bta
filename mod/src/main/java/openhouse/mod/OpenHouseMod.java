@@ -38,6 +38,12 @@ public final class OpenHouseMod implements ClientModInitializer {
     }
 
     public static void clientTick(Minecraft mc) {
+
+        String repaired = WorldGuard.pendingChat;
+        if (repaired != null && mc.currentWorld != null && !mc.isMultiplayerWorld() && mc.hudIngame != null && mc.thePlayer != null) {
+            WorldGuard.pendingChat = null;
+            mc.hudIngame.addChatMessage(repaired);
+        }
         ScreenMainMenu menu = titlePending;
         if (menu != null && mc.currentScreen == menu) {
             titlePending = null;
