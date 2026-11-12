@@ -159,9 +159,7 @@ public final class HostMain {
     }
 
     static String newCode() {
-        StringBuilder b = new StringBuilder();
-        for (int k = 0; k < 5; k++) b.append(ALPHABET.charAt(rnd.nextInt(ALPHABET.length())));
-        return b.toString();
+        return openhouse.RoomCodes.next();
     }
 
     static final Map<String, Long> MISMATCH_SAID = new java.util.concurrent.ConcurrentHashMap<>();

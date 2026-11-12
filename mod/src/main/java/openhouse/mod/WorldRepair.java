@@ -352,7 +352,11 @@ public final class WorldRepair {
                 }
                 boolean take;
                 if (best == null) take = false;
-                else if (broken) take = true;
+                else if (broken) {
+
+                    score(best, world, skip, n);
+                    take = Double.isNaN(bestScore) || n[0] < 2 || bestScore <= BAD;
+                }
                 else take = !Double.isNaN(bestScore) && bestScore <= GOOD && (Double.isNaN(curScore) || bestScore < curScore - MARGIN);
                 if (take) {
                     chosen.put(k, best);
