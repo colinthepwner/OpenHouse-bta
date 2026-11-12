@@ -36,7 +36,7 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                                     String code = Rtc.normalizeCode(typed);
 
                                     if (code == null || !Rtc.isPicked(code)) {
-                                        c.getSource().sendMessage("\"" + typed + "\" can't be a room code: use " + Rtc.PICKED_MIN + " to " + Rtc.PICKED_MAX + " letters/digits, like MYWORLD.");
+                                        c.getSource().sendMessage("\"" + typed + "\" can't be a room code: use " + Rtc.PICKED_RULE + ", like MYWORLD.");
                                         return 0;
                                     }
                                     room.changeCode(code);

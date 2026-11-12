@@ -35,6 +35,9 @@ public final class Rtc {
 
     public static final int PICKED_MIN = 6, PICKED_MAX = 16;
 
+    public static final String PICKED_RULE = PICKED_MIN + " to " + PICKED_MAX
+            + " letters/digits, and not 3 letters then 3 numbers (random codes look like that)";
+
     private Rtc() { }
 
     public static String normalizeCode(String typed) {
@@ -49,11 +52,12 @@ public final class Rtc {
             for (int k = 0; k < 5; k++) if (ALPHABET.indexOf(c.charAt(k)) < 0) return null;
             return c;
         }
-        return isPicked(c) ? c : null;
+        return isPicked(c) || RoomCodes.isRandom(c) ? c : null;
     }
 
     public static boolean isPicked(String c) {
         if (c == null || c.length() < PICKED_MIN || c.length() > PICKED_MAX) return false;
+        if (RoomCodes.isRandom(c)) return false;
         for (int k = 0; k < c.length(); k++) {
             char ch = c.charAt(k);
             if (!((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9'))) return false;

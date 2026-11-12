@@ -618,7 +618,7 @@ public final class ServerRoom {
                     + "\n"
                     + "# The room code players type to join: a name of your own, 6-16 letters/digits\n"
                     + "# (another server already using it? the console says so - pick another). Empty = a\n"
-                    + "# new random 5-character one every time the server starts.\n"
+                    + "# new random one (like XQZ273) every time the server starts.\n"
                     + "code=" + (Rtc.isPicked(code) ? code : "") + "\n"
                     + "\n"
                     + "# Where room players are sent. Empty = this server (its server-ip / server-port).\n"

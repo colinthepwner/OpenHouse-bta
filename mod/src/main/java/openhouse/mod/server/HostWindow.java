@@ -783,13 +783,13 @@ public final class HostWindow {
     void changeCode() {
         String cur = ServerRoom.get().liveCode;
         Object v = JOptionPane.showInputDialog(frame,
-                "<html>A code of your own: " + openhouse.Rtc.PICKED_MIN + " to " + openhouse.Rtc.PICKED_MAX + " letters or digits.<br>"
+                "<html>A code of your own: " + openhouse.Rtc.PICKED_RULE + ".<br>"
                         + "<span style='color:#888'>If another server already uses it, you'll be told here.</span></html>",
                 "Room code", JOptionPane.PLAIN_MESSAGE, null, null, cur != null && openhouse.Rtc.isPicked(cur) ? cur : "");
         if (v == null) return;
         String c = openhouse.Rtc.normalizeCode(v.toString());
         if (c == null || !openhouse.Rtc.isPicked(c)) {
-            JOptionPane.showMessageDialog(frame, "That can't be a room code - use " + openhouse.Rtc.PICKED_MIN + " to " + openhouse.Rtc.PICKED_MAX + " letters or digits, like MYWORLD.", "Room code", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(frame, "That can't be a room code - use " + openhouse.Rtc.PICKED_RULE + ", like MYWORLD.", "Room code", JOptionPane.WARNING_MESSAGE);
             return;
         }
         run("oh set " + c);

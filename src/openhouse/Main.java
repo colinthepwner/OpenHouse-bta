@@ -127,7 +127,7 @@ public final class Main {
     static void join(File dir, String typed, int port, boolean mcre, boolean relay) throws Exception {
         String code = Rtc.normalizeCode(typed);
         if (code == null) {
-            say("\"" + typed + "\" isn't a room code - codes are 5 letters/digits like K7QXD (no 0, 1, I or O), or a server's own name of 6-16 letters/digits.");
+            say("\"" + typed + "\" isn't a room code - codes look like XQZ273 or B7Z11E, or are a server's own name of 6-16 letters/digits.");
             System.exit(2);
         }
         final Object done = new Object();
@@ -193,7 +193,7 @@ public final class Main {
         if (typedCode != null) {
             String c = Rtc.normalizeCode(typedCode);
             if (c == null || !Rtc.isPicked(c)) {
-                say("\"" + typedCode + "\" can't be a room code: use " + Rtc.PICKED_MIN + " to " + Rtc.PICKED_MAX + " letters/digits, like MYWORLD.");
+                say("\"" + typedCode + "\" can't be a room code: use " + Rtc.PICKED_RULE + ", like MYWORLD.");
                 System.exit(2);
             }
 
@@ -272,7 +272,7 @@ public final class Main {
             });
             Runnable go = () -> {
                 String code = Rtc.normalizeCode(codeField.getText());
-                if (code == null) { status.setText("Codes are 5 letters/digits like K7QXD, or a server's own name."); return; }
+                if (code == null) { status.setText("Codes look like XQZ273 or B7Z11E, or are a server's own name."); return; }
                 if (current[0] != null && current[0].code.equals(code) && current[0].alive()) {
                     current[0].probe();
                     return;
