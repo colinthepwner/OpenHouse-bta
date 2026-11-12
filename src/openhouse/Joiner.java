@@ -168,13 +168,23 @@ public final class Joiner {
                 if (state != State.READY) { retryUntil = System.currentTimeMillis() + RETRY_MS; set(State.SEARCHING, ""); }
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
                 String line;
-                while ((line = r.readLine()) != null) line(line);
+                String noLib = null;
+                while ((line = r.readLine()) != null) {
+                    if (line.startsWith(Rtc.NO_LIB)) noLib = line.substring(Rtc.NO_LIB.length());
+                    else line(line);
+                }
                 try { childIn.close(); } catch (IOException ignored) { }
                 childIn = null;
                 int exit = p.waitFor();
                 child = null;
                 connections = 0;
                 if (stopping) break;
+                if (noLib != null) {
+
+                    log.accept("room codes are off: " + noLib);
+                    set(State.FAILED, Rtc.noLibAdvice(noLib));
+                    break;
+                }
 
                 backoff = System.currentTimeMillis() - started > 60000 ? 1000 : Math.min(backoff * 2, 30000);
                 log.accept("room connection process ended (exit " + exit + "), restarting in " + backoff / 1000 + " s");

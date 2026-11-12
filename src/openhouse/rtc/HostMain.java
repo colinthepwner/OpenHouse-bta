@@ -113,7 +113,13 @@ public final class HostMain {
         watch.setDaemon(true);
         watch.start();
 
-        factory = new PeerConnectionFactory(new HeadlessAudioDeviceModule());
+        try {
+            factory = new PeerConnectionFactory(new HeadlessAudioDeviceModule());
+        } catch (Throwable e) {
+            System.out.println(openhouse.Rtc.NO_LIB + openhouse.Rtc.why(e));
+            System.out.flush();
+            System.exit(3);
+        }
 
         int taken = 0;
         while (true) {

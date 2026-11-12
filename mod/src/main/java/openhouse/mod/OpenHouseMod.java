@@ -44,6 +44,12 @@ public final class OpenHouseMod implements ClientModInitializer {
             WorldGuard.pendingChat = null;
             mc.hudIngame.addChatMessage(repaired);
         }
+
+        String room = LocalServer.pendingChat;
+        if (room != null && mc.currentWorld != null && mc.hudIngame != null && mc.thePlayer != null) {
+            LocalServer.pendingChat = null;
+            mc.hudIngame.addChatMessage(room);
+        }
         ScreenMainMenu menu = titlePending;
         if (menu != null && mc.currentScreen == menu) {
             titlePending = null;

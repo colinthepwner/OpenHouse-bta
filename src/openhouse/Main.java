@@ -218,6 +218,8 @@ public final class Main {
             dir.mkdirs();
             try (FileOutputStream out = new FileOutputStream(props)) { p.store(out, "OpenHouse host"); } catch (Exception ignored) { }
         });
+
+        h.onFail = m -> { say(m); System.exit(1); };
         h.start();
         Thread.currentThread().join();
     }
