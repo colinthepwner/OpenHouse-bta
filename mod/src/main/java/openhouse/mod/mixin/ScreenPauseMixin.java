@@ -90,7 +90,8 @@ public abstract class ScreenPauseMixin {
         LocalServer ls = LocalServer.current();
         String code = ls == null ? null : ls.code;
         String[] tries;
-        if (code == null) tries = new String[] { t.translateKey("gui.openhouse.lan.button.nocode"), t.translateKey("gui.openhouse.lan.button.nocode.short") };
+        if (code == null && ls != null && ls.roomProblem != null) tries = new String[] { t.translateKey("gui.openhouse.lan.button.blocked"), t.translateKey("gui.openhouse.lan.button.blocked.short") };
+        else if (code == null) tries = new String[] { t.translateKey("gui.openhouse.lan.button.nocode"), t.translateKey("gui.openhouse.lan.button.nocode.short") };
         else {
 
             boolean pub = openhouse.mod.OpenHouseDiscord.shareCode;

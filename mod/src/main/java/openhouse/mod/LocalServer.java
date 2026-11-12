@@ -33,6 +33,8 @@ public final class LocalServer {
     public volatile State state = State.STARTING;
     public volatile String detail = "";
     public volatile int port;
+    public volatile String roomProblem;
+    public static volatile String pendingChat;
     public volatile String code;
 
     public volatile List<String> leftOut = new ArrayList<>();
@@ -425,6 +427,10 @@ public final class LocalServer {
         int i;
         if ((i = line.indexOf(ServerRoom.CRASH_MARKER)) >= 0) {
             crashed(line.substring(i + ServerRoom.CRASH_MARKER.length()).trim());
+        } else if ((i = line.indexOf(ServerRoom.ROOMFAIL_MARKER)) >= 0) {
+            roomProblem = line.substring(i + ServerRoom.ROOMFAIL_MARKER.length()).trim();
+            pendingChat = roomProblem;
+            OpenHouseMod.LOG.warn("room codes are off: {}", roomProblem);
         } else if ((i = line.indexOf(ServerRoom.ROOM_MARKER)) >= 0) {
 
             String c = Rtc.normalizeCode(line.substring(i + ServerRoom.ROOM_MARKER.length()).trim());

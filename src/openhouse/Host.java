@@ -28,6 +28,9 @@ public final class Host {
     public volatile Consumer<String> onTaken;
 
     public volatile Consumer<String> onWarn;
+
+    public volatile Consumer<String> onFail;
+    public volatile String failed;
     private boolean takenSaid;
 
     public static final java.util.Set<Integer> WEB_PORTS = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -78,8 +81,11 @@ public final class Host {
                 OutputStream keep = p.getOutputStream();
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
                 String line;
+                String noLib = null;
                 while ((line = r.readLine()) != null) {
-                    if (line.startsWith("ROOM ")) {
+                    if (line.startsWith(Rtc.NO_LIB)) {
+                        noLib = line.substring(Rtc.NO_LIB.length());
+                    } else if (line.startsWith("ROOM ")) {
                         String c = line.substring(5).trim();
                         if (!c.equals(code)) code = c;
                         takenSaid = false;
@@ -112,6 +118,15 @@ public final class Host {
                 child = null;
                 players = 0;
                 if (stopping) break;
+                if (noLib != null) {
+
+                    String msg = Rtc.noLibAdvice(noLib);
+                    failed = msg;
+                    log.accept("room codes are off: " + noLib);
+                    Consumer<String> f = onFail;
+                    if (f != null) f.accept(msg);
+                    break;
+                }
 
                 backoff = System.currentTimeMillis() - started > 60000 ? 2000 : Math.min(backoff * 2, 60000);
                 log.accept("room process ended (exit " + exit + "), restarting in " + backoff / 1000 + " s");

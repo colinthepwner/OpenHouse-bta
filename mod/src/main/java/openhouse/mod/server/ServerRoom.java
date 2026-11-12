@@ -232,6 +232,8 @@ public final class ServerRoom {
     private volatile String crash;
     public static final String CRASH_MARKER = "OPENHOUSE CRASHED ";
 
+    public static final String ROOMFAIL_MARKER = "OPENHOUSE ROOMFAIL ";
+
     public static volatile Throwable lastTickError;
 
     public void crashed(Throwable t) {
@@ -309,6 +311,11 @@ public final class ServerRoom {
         });
 
         h.onWarn = s -> LOG.warn(s);
+        h.onFail = s -> {
+            LOG.warn(s);
+            if (LAN) { System.out.println(ROOMFAIL_MARKER + s); System.out.flush(); }
+            if (OPENHOST) windowTitle("room codes are off - see the log");
+        };
         h.onTaken = c -> {
             if (host != self[0] || !Rtc.isPicked(c)) return;
             int n = ++takenCount;

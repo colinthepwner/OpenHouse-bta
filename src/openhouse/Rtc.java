@@ -258,6 +258,26 @@ public final class Rtc {
         throw new IOException("can't find the OpenHouse jar on disk to start WebRTC with");
     }
 
+    public static final String NO_LIB = "NOLIB ";
+
+    public static String why(Throwable e) {
+        StringBuilder sb = new StringBuilder();
+        for (Throwable t = e; t != null && sb.length() < 400; t = t.getCause() == t ? null : t.getCause()) {
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(t.getClass().getSimpleName());
+            if (t.getMessage() != null) sb.append(": ").append(t.getMessage());
+        }
+        return sb.toString().replace('\n', ' ').replace('\r', ' ');
+    }
+
+    public static String noLibAdvice(String why) {
+        String w = why == null ? "" : why.toLowerCase(java.util.Locale.ROOT);
+        if (w.contains("application control") || w.contains("policy has blocked") || w.contains("blocked"))
+            return "Windows blocked a file OpenHouse needs for room codes (Smart App Control), so room codes can't work on this PC. "
+                    + "To allow it, turn off Smart App Control in Windows Security > App & browser control.";
+        return "Room codes can't start on this PC: OpenHouse's connection library didn't load (" + why + ").";
+    }
+
     static int javaMajor() {
         String v = System.getProperty("java.specification.version", "");
         try {
