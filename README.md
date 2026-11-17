@@ -58,6 +58,8 @@ Just place OpenHost.jar in a folder and double-click it; the rest should be self
 - Go to **Multiplayer**, pick **Room Code**, type the code and click **Join**.
 - If the host has mods you don't, OH offers to grab them and restart the game with them. Your own
   `mods` folder stays the way it was. Only take mods from people you trust.
+- Tick **Keep the mods in my folder** to play with your own mods too, next to the host's. If you
+  both have the same mod, the host's is used.
 - The host's texture packs land in your texture pack list, switched off.
 
 # Passwords and whitelists

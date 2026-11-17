@@ -41,6 +41,7 @@ public final class ScreenRoomJoin extends Screen {
     private volatile List<ModShare.Mod> ownMissing;
     private final Set<String> rebuilt = java.util.Collections.synchronizedSet(new HashSet<>());
     private long ownStarted;
+    private boolean keep_mine = OpenHouseMod.keepMyMods();
 
     public ScreenRoomJoin(Screen parent, String code) {
         super(parent);
@@ -325,11 +326,28 @@ public final class ScreenRoomJoin extends Screen {
         return new File(new File(OpenHouseMod.dataDir(), "packs"), code);
     }
 
+    private static final String MINE = "mine-";
+
+    static List<File> keptOwnMods(List<ModShare.Mod> host) {
+        String home = System.getProperty("openhouse.home", "");
+        File folder = !OpenHouseMod.PACK.isEmpty() && !home.isEmpty() ? new File(home) : LocalServer.modsFolder();
+        Set<String> ids = new HashSet<>(), shas = new HashSet<>();
+        for (ModShare.Mod m : host) { if (m.id != null) ids.add(m.id); if (m.sha256 != null) shas.add(m.sha256); }
+        List<File> out = new ArrayList<>();
+        for (ModShare.Mod m : ModShare.scan(folder.getAbsoluteFile())) {
+            if (OpenHouseMod.MOD_ID.equals(m.id) || ids.contains(m.id) || shas.contains(m.sha256) || m.path == null) continue;
+            out.add(m.path);
+        }
+        return out;
+    }
+
     private void startDownload() {
         try {
             File pack = packDir();
             if (!pack.isDirectory() && !pack.mkdirs()) throw new java.io.IOException("can't create " + pack);
             Set<String> keep = new HashSet<>();
+            List<File> mine = keep_mine ? keptOwnMods(hostMods) : new ArrayList<>();
+            for (File f : mine) keep.add(MINE + f.getName());
             List<ModShare.Mod> fetch = new ArrayList<>();
             for (ModShare.Mod m : hostMods) {
                 if (OpenHouseMod.MOD_ID.equals(m.id) || ModShare.TEXTURE_PACK.equals(m.id)) continue;
@@ -339,6 +357,12 @@ public final class ScreenRoomJoin extends Screen {
             }
             File[] old = pack.listFiles();
             if (old != null) for (File f : old) if (f.isFile() && !keep.contains(f.getName())) f.delete();
+            for (File f : mine) {
+                File to = new File(pack, MINE + f.getName());
+                if (to.isFile() && to.length() == f.length() && to.lastModified() == f.lastModified()) continue;
+                Files.copy(f.toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+            }
+            if (!mine.isEmpty()) OpenHouseMod.LOG.info("keeping {} of your own mods next to room {}'s", mine.size(), code);
             phase = Phase.DOWNLOAD;
             joiner.downloadMods(pack, fetch);
         } catch (Exception e) {
@@ -360,6 +384,67 @@ public final class ScreenRoomJoin extends Screen {
         } else if (button == update) {
             mc.displayScreen(new ScreenUpdate(getParentScreen(), null, code));
         }
+    }
+
+    private static final int LIST_ROWS = 4;
+    private int list_scroll;
+    private boolean list_drag;
+
+    private int LIST_TOP() { return height / 4 + 24; }
+    private int listL() { return width / 2 - 130; }
+    private int listR() { return width / 2 + 130; }
+    private int maxScroll() { return Math.max(0, missing.size() - LIST_ROWS); }
+
+    private boolean overBar(int mx, int my) {
+        return maxScroll() > 0 && mx >= listR() - 6 && mx < listR() && my >= LIST_TOP() && my < LIST_TOP() + LIST_ROWS * 11;
+    }
+
+    private void modList(int mx, int my) {
+        I18n t = I18n.getInstance();
+        int top = LIST_TOP(), h = LIST_ROWS * 11, n = missing.size(), max = maxScroll();
+        int dw = org.lwjgl.input.Mouse.getDWheel();
+        if (dw != 0 && max > 0) list_scroll -= Integer.signum(dw);
+        if (list_drag) {
+            if (!org.lwjgl.input.Mouse.isButtonDown(0)) list_drag = false;
+            else list_scroll = Math.round((my - top) * (float) max / Math.max(1, h - 1));
+        }
+        list_scroll = Math.max(0, Math.min(max, list_scroll));
+        drawRect(listL(), top - 2, listR(), top + h + 1, 0x60000000);
+        int textW = listR() - listL() - (max > 0 ? 14 : 6);
+        for (int i = 0; i < LIST_ROWS && list_scroll + i < n; i++) {
+            ModShare.Mod m = missing.get(list_scroll + i);
+            String row = m.name + " " + m.version;
+            String tail = rebuilt.contains(m.sha256) ? " §8(" + t.translateKey("gui.openhouse.mods.differentbuild") + ")" : "";
+            while (row.length() > 3 && fontRenderer.stringWidth(row + tail) > textW) row = row.substring(0, row.length() - 1);
+            if (!row.equals(m.name + " " + m.version)) row = row.trim() + "..";
+            drawStringCenteredShadow(fontRenderer, "§7" + row + tail, (listL() + listR() - (max > 0 ? 8 : 0)) / 2, top + i * 11 + 1, 0xFFFFFF);
+        }
+        if (max > 0) {
+            int bx = listR() - 6;
+            int th = Math.max(8, h * LIST_ROWS / n);
+            int ty = top + (h - th) * list_scroll / max;
+            drawRect(bx, top, listR(), top + h, 0x80000000);
+            drawRect(bx + 1, ty, listR() - 1, ty + th, list_drag || overBar(mx, my) ? 0xFFFFFFFF : 0xFFA0A0A0);
+        }
+    }
+
+    private int boxX() { return width / 2 - (12 + fontRenderer.stringWidth(I18n.getInstance().translateKey("gui.openhouse.mods.keepmine"))) / 2; }
+    private int boxY() { return height / 4 + 110; }
+
+    private boolean overBox(int mx, int my) {
+        int w = 12 + fontRenderer.stringWidth(I18n.getInstance().translateKey("gui.openhouse.mods.keepmine"));
+        return phase == Phase.ASK && mx >= boxX() && mx < boxX() + w && my >= boxY() - 1 && my < boxY() + 11;
+    }
+
+    @Override public void mouseClicked(int mx, int my, int btn) {
+        if (btn == 0 && phase == Phase.ASK && overBar(mx, my)) { list_drag = true; return; }
+        if (btn == 0 && overBox(mx, my)) {
+            keep_mine = !keep_mine;
+            OpenHouseMod.set_keep_my_mods(keep_mine);
+            mc.sndManager.playSound("random.click", net.minecraft.core.sound.SoundCategory.GUI_SOUNDS, 1.0F, 1.0F);
+            return;
+        }
+        super.mouseClicked(mx, my, btn);
     }
 
     @Override public void keyPressed(char c, int key, int mx, int my) {
@@ -403,13 +488,6 @@ public final class ScreenRoomJoin extends Screen {
                 long bytes = 0;
                 for (ModShare.Mod m : missing) bytes += Math.max(0, m.size);
                 lines.add(t.translateKeyAndFormat("gui.openhouse.mods.missing", missing.size(), mb(bytes)));
-                int shown = 0;
-                for (ModShare.Mod m : missing) {
-                    if (shown++ == 4 && missing.size() > 5) { lines.add(t.translateKeyAndFormat("gui.openhouse.mods.more", missing.size() - 4)); break; }
-                    lines.add("§7" + m.name + " " + m.version
-                            + (rebuilt.contains(m.sha256) ? " §8(" + t.translateKey("gui.openhouse.mods.differentbuild") + ")" : ""));
-                }
-                lines.add("§6" + t.translateKey("gui.openhouse.mods.trust"));
                 color = 0xFFFFFF;
                 break;
             }
@@ -443,7 +521,19 @@ public final class ScreenRoomJoin extends Screen {
             drawStringCenteredShadow(fontRenderer, l, cx, ly, color);
             ly += 11;
         }
+        if (phase == Phase.ASK) {
+            modList(mx, my);
+            drawStringCenteredShadow(fontRenderer, "§6" + t.translateKey("gui.openhouse.mods.trust"), cx, LIST_TOP() + LIST_ROWS * 11 + 4, 0xFFFFFF);
+        }
         super.render(mx, my, partialTick);
+        if (phase == Phase.ASK) {
+            int bx = boxX(), by = boxY();
+            boolean hot = overBox(mx, my);
+            drawRect(bx, by, bx + 9, by + 9, hot ? 0xFFFFFFFF : 0xFFA0A0A0);
+            drawRect(bx + 1, by + 1, bx + 8, by + 8, 0xFF000000);
+            if (keep_mine) drawRect(bx + 2, by + 2, bx + 7, by + 7, 0xFFFFFFFF);
+            drawStringShadow(fontRenderer, t.translateKey("gui.openhouse.mods.keepmine"), bx + 12, by + 1, hot ? 0xFFFFA0 : 0xE0E0E0);
+        }
     }
 
     private static String mb(long bytes) {
