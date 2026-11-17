@@ -238,6 +238,22 @@ public final class OpenHouseMod implements ClientModInitializer {
         return settings().getProperty(openhouse.ShareFolders.SETTING, openhouse.ShareFolders.DEFAULT).trim();
     }
 
+    static boolean keepMyMods() {
+        return "true".equals(settings().getProperty("keep-my-mods", "false").trim());
+    }
+
+    static void set_keep_my_mods(boolean on) {
+        Properties p = settings();
+        p.setProperty("keep-my-mods", on ? "true" : "false");
+        File d = dataDir();
+        d.mkdirs();
+        try (FileOutputStream out = new FileOutputStream(new File(d, "openhouse.properties"))) {
+            p.store(out, "OpenHouse");
+        } catch (Exception e) {
+            LOG.warn("can't save keep-my-mods: {}", e.toString());
+        }
+    }
+
     static void rememberCode(String code) {
         Properties p = settings();
         if (code.equals(p.getProperty("lastCode"))) return;
