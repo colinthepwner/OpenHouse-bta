@@ -57,6 +57,7 @@ public final class Relaunch {
             if (!new File(home).getAbsoluteFile().equals(def.getAbsoluteFile())) cmd.add("-Dfabric.modsFolder=" + home);
         }
         if (autojoin != null) cmd.add("-Dopenhouse.autojoin=" + autojoin);
+        OpenHost.no_b64(cmd);
         cmd.add("-cp");
         cmd.add(stableClasspath(System.getProperty("java.class.path")));
         cmd.add("net.fabricmc.loader.impl.launch.knot.KnotClient");

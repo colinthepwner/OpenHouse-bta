@@ -94,6 +94,7 @@ public final class OpenHost {
                 cmd.add("-Xmx" + mem);
                 say("Server memory: " + mem.replace("G", " GB").replace("M", " MB") + " (" + MEMORY_KEY + " in server.properties)");
             }
+            OpenHost.no_b64(cmd);
             cmd.addAll(modOptions(self, mods, data));
             cmd.add("-Dopenhouse.openhost=" + Version.VERSION);
             if (!ui.equals("console")) cmd.add("-Dopenhouse.openhost.gui=" + ui);
@@ -430,6 +431,11 @@ public final class OpenHost {
             for (File p = f.getCanonicalFile(); p != null; p = p.getParentFile()) if (p.equals(d)) return true;
         } catch (IOException ignored) { }
         return false;
+    }
+
+    static final String NO_B64 = "-XX:-UseBASE64Intrinsics";
+    static void no_b64(List<String> cmd) {
+        if (!cmd.contains(NO_B64)) cmd.add(1, NO_B64);
     }
 
     static List<String> jvmOptions() {
