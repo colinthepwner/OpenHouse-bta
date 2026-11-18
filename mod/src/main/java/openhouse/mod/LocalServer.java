@@ -307,6 +307,7 @@ public final class LocalServer {
             List<String> cmd = new ArrayList<>();
             cmd.add(new File(new File(System.getProperty("java.home"), "bin"), "java").getAbsolutePath());
             cmd.add("-Xmx" + serverHeapMb() + "M");
+            OpenHost.no_b64(cmd);
 
             cmd.add("-Djava.awt.headless=true");
             cmd.add("-Dfabric.modsFolder=" + modsDir.getAbsolutePath());
