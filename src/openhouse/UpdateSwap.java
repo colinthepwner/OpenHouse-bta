@@ -51,12 +51,12 @@ public final class UpdateSwap {
             try {
                 Files.copy(newJar.toPath(), part.toPath(), StandardCopyOption.REPLACE_EXISTING);
             } catch (Exception e) {
-                log("couldn't copy the new jar into " + target + ": " + e + " - leaving this folder as it is");
+                log("couldn't copy the new jar into " + target + ": " + e + ", leaving this folder as it is");
                 continue;
             }
             boolean cleared = true;
             for (File j : old) {
-                if (!deleteSoon(j)) { cleared = false; log("couldn't remove " + j + " - leaving this folder as it is"); }
+                if (!deleteSoon(j)) { cleared = false; log("couldn't remove " + j + ", leaving this folder as it is"); }
             }
             if (!cleared || (dest.exists() && !deleteSoon(dest)) || !part.renameTo(dest)) {
                 part.delete();

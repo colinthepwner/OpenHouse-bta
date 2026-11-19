@@ -60,7 +60,7 @@ public final class HostUi {
         mode = mode.toLowerCase(Locale.ROOT);
         save(mode);
         if (java.awt.GraphicsEnvironment.isHeadless()) {
-            tell(src, "Saved " + KEY + "=" + mode + " - this machine has no screen, so OpenHost runs in console mode anyway.");
+            tell(src, "Saved " + KEY + "=" + mode + ", but this machine has no screen, so OpenHost runs in console mode anyway.");
             return;
         }
         MinecraftServer s = MinecraftServer.getInstance();
@@ -72,7 +72,7 @@ public final class HostUi {
                 tell(src, "Switched to the modern window.");
                 break;
             case "classic":
-                if (s == null) { tell(src, "Saved - the classic window opens from the next start."); break; }
+                if (s == null) { tell(src, "Saved. The classic window opens from the next start."); break; }
                 HostWindow.close();
                 GuiLog.installNow();
                 GuiLog.enabled = true;
@@ -86,9 +86,9 @@ public final class HostUi {
                 if (hasConsole()) {
                     HostWindow.close();
                     closeClassic();
-                    tell(src, "Window closed - the console is all there is now (\"oh ui modern\" brings it back).");
+                    tell(src, "Window closed. The console is all there is now (\"oh ui modern\" brings it back).");
                 } else {
-                    tell(src, "Saved - the next start runs in console mode. (No console to type into right now, so the window stays.)");
+                    tell(src, "Saved. The next start runs in console mode. (No console to type into right now, so the window stays.)");
                 }
                 break;
             default:

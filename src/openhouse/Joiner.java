@@ -220,7 +220,7 @@ public final class Joiner {
             case "OFFLINE":
                 offline = true;
                 log.accept("can't reach the matchmaking server (" + rest + "), retrying");
-                set(state, "Can't reach the matchmaking server - retrying...");
+                set(state, "Can't reach the matchmaking server, retrying...");
                 break;
             case "FOUND":     retryUntil = 0; set(State.READY, ""); break;
             case "NOTFOUND":

@@ -579,7 +579,7 @@ public final class JoinMain {
                     try { Thread.sleep(OPEN_TIMEOUT_MS); } catch (InterruptedException ignored) { }
                     if (!opened && !closed) {
                         log("couldn't connect to the room's host in time (no network path found)");
-                        tell("Couldn't reach the room's host - try joining again.");
+                        tell("Couldn't reach the room's host. Try joining again.");
                         close();
                     }
                 }, "openhouse open watchdog");
@@ -626,7 +626,7 @@ public final class JoinMain {
             links.remove(cid, this);
             Link again = new Link(tcp);
             again.restarts = restarts + 1;
-            log(cid + " was still connecting when the matchmaking connection dropped - trying again as " + again.cid);
+            log(cid + " was still connecting when the matchmaking connection dropped, trying again as " + again.cid);
             final RTCPeerConnection p = pc;
             final RTCDataChannel ch = dc;
             Thread t = new Thread(() -> {
@@ -707,8 +707,8 @@ public final class JoinMain {
             Thread w = new Thread(() -> {
                 try { Thread.sleep(FIRST_BYTE_MS); } catch (InterruptedException e) { return; }
                 if (closed || received > 0) return;
-                log("the room's host didn't answer a connection in " + FIRST_BYTE_MS / 1000 + " s - dropping it");
-                tell("The room's host didn't answer - try joining again.");
+                log("the room's host didn't answer a connection in " + FIRST_BYTE_MS / 1000 + " s, dropping it");
+                tell("The room's host didn't answer. Try joining again.");
                 close();
             }, "openhouse first byte watch");
             w.setDaemon(true);
@@ -777,7 +777,7 @@ public final class JoinMain {
             debug(cid + " closed" + (tcp == null ? (mods ? " (mods)" : " (probe)") : opened ? ", " + received + " bytes from the host" : " (never opened)"));
             links.remove(cid, this);
             toGame.offer(new byte[0]);
-            tell("Lost the connection to the room's host - try joining again.");
+            tell("Lost the connection to the room's host. Try joining again.");
 
             if (tcp != null && !piped) {
                 try { tcp.close(); } catch (IOException ignored) { }

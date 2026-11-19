@@ -68,15 +68,15 @@ public final class SaveFileGuard {
         Files.move(f.toPath(), aside.toPath());
         if (good == null) {
             if (rel.equals("level.dat"))
-                return "level.dat is damaged and there's no good copy to put back - moved it to " + aside.getName()
+                return "level.dat is damaged and there's no good copy to put back, so it was moved to " + aside.getName()
                         + " so the game can start; the world is hidden from the list until a good level.dat is put in its folder";
-            return rel + " is damaged and there's no good copy to put back - moved it to " + aside.getName()
+            return rel + " is damaged and there's no good copy to put back, so it was moved to " + aside.getName()
                     + " so the game can start (whatever keeps it starts that part fresh)";
         }
 
         Files.copy(good.toPath(), f.toPath(), StandardCopyOption.REPLACE_EXISTING);
         String from = good.getParentFile().equals(f.getParentFile()) ? good.getName() : "OpenHouse backup " + backupName(backups, good);
-        return rel + " was damaged - put back the one from " + from + " (the damaged one is kept as " + aside.getName() + ")";
+        return rel + " was damaged, so OpenHouse put back the one from " + from + " (the damaged one is kept as " + aside.getName() + ")";
     }
 
     private static String backupName(File backups, File good) {

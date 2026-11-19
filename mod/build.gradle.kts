@@ -53,9 +53,6 @@ dependencies {
 	implementation("io.github.jaredmdobson:concentus:1.0.2")
 	implementation("de.maxhenkel.rnnoise4j:rnnoise4j:2.1.3")
 
-	bundled("fr.delthas:javamp3:1.0.1")
-	implementation("fr.delthas:javamp3:1.0.1")
-
 	compileOnly(libs.bundles.btaLwjgl)
 	compileOnly(libs.joml)
 	compileOnly(libs.joml.primitives)

@@ -260,7 +260,7 @@ public final class ServerRoom {
             MinecraftServer server = MinecraftServer.getInstance();
 
             String c = crash;
-            String why = !LAN ? (c == null ? "The server stopped." : "The server crashed (" + shortName(c) + ") - try again in a minute.")
+            String why = !LAN ? (c == null ? "The server stopped." : "The server crashed (" + shortName(c) + "). Try again in a minute.")
                     : c == null ? "The host closed their world." : "The world crashed (" + shortName(c) + ").";
             try {
                 if (server != null && server.playerList != null)
@@ -321,7 +321,7 @@ public final class ServerRoom {
         h.onFail = s -> {
             LOG.warn(s);
             if (LAN) { System.out.println(ROOMFAIL_MARKER + s); System.out.flush(); }
-            if (OPENHOST) windowTitle("room codes are off - see the log");
+            if (OPENHOST) windowTitle("room codes are off, see the log");
         };
         h.onTaken = c -> {
             if (host != self[0] || !Rtc.isPicked(c)) return;
@@ -330,7 +330,7 @@ public final class ServerRoom {
                 takenCode = c;
                 LOG.warn("Room code {} is taken - another server is using it, so players can't join this one with it. "
                         + "Pick a different code: oh set <name> (6-16 letters/digits), or code= in config/openhouse.properties.", c);
-                if (OPENHOST) windowTitle("room code " + c + " is taken - oh set <name>");
+                if (OPENHOST) windowTitle("room code " + c + " is taken (oh set <name>)");
             }
         };
         self[0] = h;
@@ -594,16 +594,17 @@ public final class ServerRoom {
             try {
                 String mine = FabricLoader.getInstance().getModContainer("openhouse")
                         .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("");
-                openhouse.Update.Release r = openhouse.Update.latestMod(openhouse.Update.gameVersion(mine));
-                if (!r.newer()) return;
+
+                openhouse.Update.Release r = openhouse.Update.mod_to_offer(openhouse.Update.gameVersion(mine));
+                if (r == null || !r.newer()) return;
                 File self = Rtc.self();
                 if (!self.isFile()) return;
                 LOG.info("OpenHouse {} is out (this server has {}) - downloading it", r.version, openhouse.Version.VERSION);
                 File jar = openhouse.Update.download(r, new File(dataDir, "update"), null);
                 swap = openhouse.Update.startSwap(self, jar, dataDir, java.util.Collections.singletonList(self.getParentFile().getAbsolutePath()),
                         java.util.Collections.<String>emptyList(), new File(System.getProperty("user.dir")));
-                LOG.info("OpenHouse {} goes in when this server stops - restart the server to use it (players on {} can't join by code until then). "
-                        + "If it isn't in after a restart, replace {} with {} yourself.", r.version, r.version, self.getName(), jar.getPath());
+                LOG.info("OpenHouse {} goes in when this server stops, so restart the server to use it. "
+                        + "If it isn't in after a restart, replace {} with {} yourself.", r.version, self.getName(), jar.getPath());
             } catch (Exception e) {
                 LOG.info("couldn't check for an OpenHouse update: {}", e.toString());
             }
@@ -629,14 +630,14 @@ public final class ServerRoom {
         file.getParentFile().mkdirs();
         try (Writer w = new OutputStreamWriter(new java.io.FileOutputStream(file), StandardCharsets.UTF_8)) {
             w.write("# OpenHouse: players join this server by room code (Multiplayer > Room Code with the\n"
-                    + "# mod, or the OpenHouse helper) - no port forwarding.\n"
+                    + "# mod, or the OpenHouse helper), no port forwarding.\n"
                     + "# In game / console: /oh, and for ops /oh new, /oh set <CODE>, /oh on|off\n"
                     + "\n"
                     + "# true or false\n"
                     + "enabled=" + enabled + "\n"
                     + "\n"
                     + "# The room code players type to join: a name of your own, 6-16 letters/digits\n"
-                    + "# (another server already using it? the console says so - pick another). Empty = a\n"
+                    + "# (another server already using it? the console says so, pick another). Empty = a\n"
                     + "# new random one (like XQZ273) every time the server starts.\n"
                     + "code=" + (Rtc.isPicked(code) ? code : "") + "\n"
                     + "\n"
@@ -648,7 +649,7 @@ public final class ServerRoom {
                     + "shareMods=" + shareMods + "\n"
                     + "\n"
                     + "# Folders of a mod's own beside this server that players may add to, so everyone\n"
-                    + "# can use what anyone brought - BTEmu's game cartridges, for instance. Folder\n"
+                    + "# can use what anyone brought, BTEmu's game cartridges for instance. Folder\n"
                     + "# names separated by commas, or off for none.\n"
                     + openhouse.ShareFolders.SETTING + "=" + shareFolders + "\n"
                     + "\n"
@@ -657,7 +658,7 @@ public final class ServerRoom {
                     + "autoUpdate=" + autoUpdate + "\n"
                     + "\n"
                     + "# A password players need to join (OpenHouse asks them once and remembers it). Empty = none.\n"
-                    + "# Change it any time with /oh password <new> or /oh password off - players already on stay.\n"
+                    + "# Change it any time with /oh password <new> or /oh password off. Players already on stay.\n"
                     + "password=" + escapeValue(password) + "\n"
                     + "\n"
                     + "# Only let in the players listed below (and ops). true or false. /oh whitelist on|off|add|remove\n"

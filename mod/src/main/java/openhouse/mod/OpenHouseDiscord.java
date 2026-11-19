@@ -24,14 +24,14 @@ public final class OpenHouseDiscord {
             LocalServer ls = LocalServer.current();
             if (ls == null || !LocalServer.hosting() || ls.code == null) return;
             Minecraft mc = Minecraft.getMinecraft();
-            a.setDetails("Hosting a world - OpenHouse");
+            a.setDetails("Hosting a world on OpenHouse");
             String said = shareCode ? "public " + ls.code : "friends";
             if (!said.equals(lastSaid)) { lastSaid = said; OpenHouseMod.LOG.info("Discord presence: {}", shareCode ? "room code " + ls.code + " with Join" : "playing with friends (no code)"); }
             if (!shareCode) {
                 a.setState("Playing with friends");
                 return;
             }
-            a.setState("Room code " + ls.code + " - join me!");
+            a.setState("Room code " + ls.code + ", join me!");
             a.party().setID("openhouse-" + ls.code);
             int players = mc != null && mc.currentWorld != null ? Math.max(1, mc.currentWorld.players.size()) : 1;
             a.party().size().setCurrentSize(players);

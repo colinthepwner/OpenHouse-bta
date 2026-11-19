@@ -466,7 +466,7 @@ public final class HostWindow {
             if (ServerRoom.get().password.isEmpty()) return;
             ServerRoom.get().setPassword("");
             ServerRoom.LOG.info("the server password was removed");
-            note("Password removed - anyone with the code can join.");
+            note("Password removed. Anyone with the code can join.");
             refresh();
         });
         pw.add(setPw);
@@ -477,7 +477,7 @@ public final class HostWindow {
         whitelistBox.setAlignmentX(0);
         whitelistBox.addActionListener(e -> {
             ServerRoom.get().setWhitelist(whitelistBox.isSelected());
-            note(whitelistBox.isSelected() ? "Whitelist on - only players on it (and operators) can join." : "Whitelist off - anyone with the code can join.");
+            note(whitelistBox.isSelected() ? "Whitelist on. Only players on it (and operators) can join." : "Whitelist off. Anyone with the code can join.");
         });
         p.add(whitelistBox);
         JButton editWl = new JButton("Edit whitelist…");
@@ -509,7 +509,7 @@ public final class HostWindow {
         mem.addActionListener(e -> {
             String[] c = choices.get(mem.getSelectedIndex());
             HostUi.write(OpenHost.MEMORY_KEY, c[1]);
-            note("Memory: " + c[0] + " from the next start - Restart now to use it straight away.");
+            note("Memory: " + c[0] + " from the next start. Restart now to use it straight away.");
         });
         p.add(mem);
         p.add(Box.createVerticalStrut(6));
@@ -688,7 +688,7 @@ public final class HostWindow {
 
     void run(String cmd) {
         MinecraftServer s = MinecraftServer.getInstance();
-        if (s == null) { note("The server is still starting - try again in a moment."); return; }
+        if (s == null) { note("The server is still starting. Try again in a moment."); return; }
         String c = cmd.startsWith("/") ? cmd.substring(1) : cmd;
         s.addCommand(c, new net.minecraft.core.net.ICommandListener() {
             public void logInfo(String msg) { SwingUtilities.invokeLater(() -> echo(msg)); }
@@ -734,12 +734,12 @@ public final class HostWindow {
         int n = s.playerList == null ? 0 : s.playerList.playerEntities.size();
         String live = ServerRoom.get().liveCode;
         String msg = "<html>Restart the server now? The world is saved first."
-                + (n > 0 ? "<br>" + n + (n == 1 ? " player is" : " players are") + " on - they can join again in a minute." : "")
+                + (n > 0 ? "<br>" + n + (n == 1 ? " player is" : " players are") + " on. They can join again in a minute." : "")
                 + (live != null ? "<br><span style='color:#888'>The room code stays " + live + ".</span>" : "")
                 + "</html>";
         if (JOptionPane.showConfirmDialog(frame, msg, "Restart", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) != JOptionPane.OK_OPTION) return;
         stopping = true;
-        note("Restarting - saving the world first...");
+        note("Restarting, saving the world first...");
         refresh();
         ServerRoom.restart(s);
     }
@@ -755,7 +755,7 @@ public final class HostWindow {
         if (r != JOptionPane.OK_OPTION || pw.isEmpty()) return;
         ServerRoom.get().setPassword(pw);
         ServerRoom.LOG.info("the server password was changed");
-        note("Password set - players type it once when they join; anyone already on stays.");
+        note("Password set. Players type it once when they join; anyone already on stays.");
         refresh();
     }
 
@@ -775,8 +775,8 @@ public final class HostWindow {
         int added = 0, removed = 0;
         for (String n : had) if (!want.contains(n) && room.whitelistRemove(n)) removed++;
         for (String n : want) if (room.whitelistAdd(n)) added++;
-        note("Whitelist: " + added + " added, " + removed + " removed - " + room.whitelisted().size() + " on it."
-                + (room.whitelist ? "" : " (It's off - tick \"Only players on the whitelist\".)")
+        note("Whitelist: " + added + " added, " + removed + " removed, " + room.whitelisted().size() + " on it."
+                + (room.whitelist ? "" : " (It's off, tick \"Only players on the whitelist\".)")
                 + (bad.isEmpty() ? "" : " Not names: " + String.join(", ", bad)));
     }
 
@@ -789,7 +789,7 @@ public final class HostWindow {
         if (v == null) return;
         String c = openhouse.Rtc.normalizeCode(v.toString());
         if (c == null || !openhouse.Rtc.isPicked(c)) {
-            JOptionPane.showMessageDialog(frame, "That can't be a room code - use " + openhouse.Rtc.PICKED_RULE + ", like MYWORLD.", "Room code", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(frame, "That can't be a room code. Use " + openhouse.Rtc.PICKED_RULE + ", like MYWORLD.", "Room code", JOptionPane.WARNING_MESSAGE);
             return;
         }
         run("oh set " + c);
@@ -799,7 +799,7 @@ public final class HostWindow {
         MinecraftServer s = MinecraftServer.getInstance();
         int n = s == null ? 0 : s.playerList.playerEntities.size();
         String msg = stopping ? "Still saving the world. Force stop without waiting for it?"
-                : n > 0 ? "Stop the server? " + n + (n == 1 ? " player is" : " players are") + " on - the world is saved first."
+                : n > 0 ? "Stop the server? " + n + (n == 1 ? " player is" : " players are") + " on. The world is saved first."
                 : "Stop the server? The world is saved first.";
         int[] choice = { 0 };
         javax.swing.JDialog[] dialog = new javax.swing.JDialog[1];
@@ -853,7 +853,7 @@ public final class HostWindow {
         m.add(item("Add to whitelist", () -> run("oh whitelist add " + name)));
         m.addSeparator();
         m.add(item("Kick…", () -> {
-            String why = JOptionPane.showInputDialog(frame, "Kick " + name + " - reason (optional):", "Kick", JOptionPane.PLAIN_MESSAGE);
+            String why = JOptionPane.showInputDialog(frame, "Kick " + name + "? Reason (optional):", "Kick", JOptionPane.PLAIN_MESSAGE);
             if (why != null) run(why.trim().isEmpty() ? "kick " + name : "oh kick " + name + " " + why.trim());
         }));
         m.add(item("Ban…", () -> {
@@ -882,13 +882,13 @@ public final class HostWindow {
 
         String live = room.liveCode, taken = room.takenCode;
         if (!room.enabled) { code.setText("off"); codeNote.setText("room codes are off"); }
-        else if (taken != null && live == null) { code.setText(taken); code.setForeground(bad()); codeNote.setText("taken by another server - change it"); }
+        else if (taken != null && live == null) { code.setText(taken); code.setForeground(bad()); codeNote.setText("taken by another server, change it"); }
 
         else if (live != null) { code.setText(live); code.setForeground(accent()); codeNote.setText(""); }
         else { code.setText("…"); code.setForeground(accent()); codeNote.setText(up ? "registering…" : " "); }
         frame.setTitle(live != null ? "OpenHost · " + live : "OpenHost");
 
-        pwState.setText(room.password.isEmpty() ? "No password - anyone with the code can join" : "Password set - players need it to join");
+        pwState.setText(room.password.isEmpty() ? "No password, anyone with the code can join" : "Password set, players need it to join");
         pwState.setForeground(room.password.isEmpty() ? dim() : ok());
         if (whitelistBox.isSelected() != room.whitelist) whitelistBox.setSelected(room.whitelist);
 
@@ -1293,7 +1293,7 @@ public final class HostWindow {
             if (r != null) {
                 hint.setForeground(r.changed ? accent() : ok());
 
-                hint.setText(r.changed ? "→ runs:  " + r.command : "ready - Enter runs it");
+                hint.setText(r.changed ? "→ runs:  " + r.command : "ready, Enter runs it");
                 return;
             }
             String u = LazyCommands.usage(s, t);

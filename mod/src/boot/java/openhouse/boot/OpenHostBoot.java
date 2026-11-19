@@ -141,7 +141,7 @@ public final class OpenHostBoot {
         cmd.add("-jar");
         cmd.add(self.getAbsolutePath());
         cmd.addAll(Arrays.asList(args));
-        System.out.println("[OpenHost] This is Java " + System.getProperty("java.version") + " - starting OpenHost on the Java " + versionOf(home) + " at " + home);
+        System.out.println("[OpenHost] This is Java " + System.getProperty("java.version") + ", starting OpenHost on the Java " + versionOf(home) + " at " + home);
         Process p = new ProcessBuilder(cmd).inheritIO().start();
         return p.waitFor();
     }

@@ -53,7 +53,7 @@ public final class Main {
     }
 
     static void usage() {
-        System.out.println("OpenHouse helper - join and host Better than Adventure servers by room code\n"
+        System.out.println("OpenHouse helper: join and host Better than Adventure servers by room code\n"
                 + "  java -jar openhouse-helper.jar join <CODE>      join a room, then Direct Connect to the address it shows\n"
                 + "  java -jar openhouse-helper.jar host [address] [code]\n"
                 + "                                                  give your server a room code (default localhost:25565);\n"
@@ -70,7 +70,7 @@ public final class Main {
             if (!self.isFile() || self.getName().equals(UPDATE_COPY)) return false;
             Update.Release r = Update.latestHelper();
             if (!r.newer()) return false;
-            say("A newer OpenHouse helper is out (" + r.version + ", this is " + Version.VERSION + ") - updating...");
+            say("A newer OpenHouse helper is out (" + r.version + ", this is " + Version.VERSION + "), updating...");
             File jar = Update.download(r, new File(dir, "update"), null);
             File run = new File(self.getParentFile(), UPDATE_COPY);
             java.nio.file.Files.copy(jar.toPath(), run.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -91,7 +91,7 @@ public final class Main {
             System.exit(code);
             return true;
         } catch (Exception e) {
-            say("(couldn't update the helper: " + (e.getMessage() == null ? e.toString() : e.getMessage()) + " - carrying on with " + Version.VERSION + ")");
+            say("(couldn't update the helper: " + (e.getMessage() == null ? e.toString() : e.getMessage()) + ", carrying on with " + Version.VERSION + ")");
             return false;
         }
     }
@@ -127,7 +127,7 @@ public final class Main {
     static void join(File dir, String typed, int port, boolean mcre, boolean relay) throws Exception {
         String code = Rtc.normalizeCode(typed);
         if (code == null) {
-            say("\"" + typed + "\" isn't a room code - codes look like XQZ273 or B7Z11E, or are a server's own name of 6-16 letters/digits.");
+            say("\"" + typed + "\" isn't a room code. Codes look like XQZ273 or B7Z11E, or are a server's own name of 6-16 letters/digits.");
             System.exit(2);
         }
         final Object done = new Object();
@@ -209,7 +209,7 @@ public final class Main {
         } else p.setProperty("code", saved);
         say("Giving the BTA server at " + target + " a room code (Ctrl+C to stop)...");
         if (!Rtc.isPicked(p.getProperty("code", "")))
-            say("(a new code every start - for one that stays: java -jar openhouse-helper.jar host " + address + " <6-16 letters/digits>)");
+            say("(a new code every start. For one that stays: java -jar openhouse-helper.jar host " + address + " <6-16 letters/digits>)");
         Host h = new Host(dir, p.getProperty("code", ""), p.getProperty("token", ""), target, Main::say, (c, t) -> {
             if (!Rtc.isPicked(c)) return;
             if (c.equals(p.getProperty("code")) && t.equals(p.getProperty("token"))) return;
@@ -266,8 +266,8 @@ public final class Main {
                         copy.setEnabled(true);
                         hint.setText("Keep this window open while you play.");
                         break;
-                    case NOT_FOUND: status.setText("No room " + j.code + " right now - check the code."); joinButton.setEnabled(true); break;
-                    case NO_ANSWER: status.setText("Room " + j.code + " didn't answer - try again."); joinButton.setEnabled(true); break;
+                    case NOT_FOUND: status.setText("No room " + j.code + " right now. Check the code."); joinButton.setEnabled(true); break;
+                    case NO_ANSWER: status.setText("Room " + j.code + " didn't answer. Try again."); joinButton.setEnabled(true); break;
                     case FAILED: status.setText("Can't join: " + j.detail); joinButton.setEnabled(true); break;
                     default:
                 }

@@ -42,11 +42,16 @@ public final class MobSmooth {
     double dvx, dvy, dvz;
     boolean shown;
     public double px, py, pz;
+    public double lx, ly, lz;
     double conf;
     double clock = Double.NaN;
     int per = 3;
-    final double[] gaps = {0, 0, 0, 1};
+    double g3 = 1, goff;
     boolean still;
+    boolean wet;
+    int calm, calm_t;
+    static final double LAND_VY = -1.0 / 32 / TICK;
+    static final double CALM_SPAN = num("ms.calm", 0), CALM_BLEND = num("ms.calmblend", 150), CALM_CONF = num("ms.calmconf", 0.9);
     double lt;
 
     double yw, yv, yt = Double.NaN, yconf, ydisp;
@@ -56,18 +61,33 @@ public final class MobSmooth {
     static final double YEASE = num("ms.yease", 0.5), YLEAD = num("ms.ylead", 1), YB = num("ms.yb", 0.6), YJIT = num("ms.yjit", 12);
 
     public boolean ready() { return !Double.isNaN(st); }
-    public void reset() { st = Double.NaN; clock = Double.NaN; bt = Double.NaN; shown = false; yt = Double.NaN; ylast = Double.NaN; ystep = YSTEP; }
+
+    public void wet(boolean w) {
+        if (w == wet) return;
+        if (!ready()) { wet = w; return; }
+        double now = now_ms(), cx = dx(now), cy = dy(now), cz = dz(now);
+        wet = w;
+        blend(now, cx, cy, cz);
+    }
+
+    public void hurt(boolean h) {
+        if (h && calm == 0 && ready()) { double now = now_ms(), cx = dx(now), cy = dy(now), cz = dz(now); calm = 4; blend(now, cx, cy, cz); }
+        if (h) { calm = 4; calm_t = 0; }
+    }
+    public void reset() { st = Double.NaN; clock = Double.NaN; bt = Double.NaN; shown = false; yt = Double.NaN; ylast = Double.NaN; ystep = YSTEP; calm = 0; }
 
     public void sample(double x, double y, double z) {
         long arr = stamp != 0 ? stamp : wall.getAsLong();
         stamp = 0;
+        double was_y = ly;
+        lx = x; ly = y; lz = z;
         double t = tick_lock(arr);
         if (!ready()) { put(x, y, z, t); return; }
 
         int ticks = (int) Math.round((t - st) / TICK);
-        for (int i = 1; i <= 3; i++) gaps[i] *= 0.97;
-        if (ticks >= 1 && ticks <= 3) gaps[ticks] += 1;
-        per = gaps[1] > 0.25 * (gaps[1] + gaps[2] + gaps[3]) ? 1 : gaps[3] >= gaps[2] ? 3 : 2;
+        g3 *= 0.97; goff *= 0.97;
+        if (ticks >= 1 && ticks <= 12) { if (ticks % 3 == 0) g3 += 1; else goff += 1; }
+        per = goff > 0.2 * (g3 + goff) ? 1 : 3;
 
         if (t <= st) st = t - per * TICK;
 
@@ -81,6 +101,7 @@ public final class MobSmooth {
         }
         double dt = t - st;
 
+        double fx0 = fx, fy0 = fy, fz0 = fz;
         double ox = fx + vx * dt, oy = fy + vy * dt, oz = fz + vz * dt;
         if (still) {
 
@@ -88,33 +109,42 @@ public final class MobSmooth {
             if (dt > 4 * TICK) vx = vy = vz = 0;
         }
         double rx = x - ox, ry = y - oy, rz = z - oz;
-        double r = Math.sqrt(rx * rx + ry * ry + rz * rz);
+        double rh = Math.sqrt(rx * rx + rz * rz), r = Math.sqrt(rh * rh + ry * ry);
         if (r > SNAP) { put(x, y, z, t); return; }
 
-        double a = A, b = B;
-        if (r > TURN) { double k = Math.min(1, (r - TURN) / TURN); a += (1 - a) * k; b += (1 - b) * k; }
-        fx = ox + a * rx; fy = oy + a * ry; fz = oz + a * rz;
-        vx += b * rx / dt; vy += b * ry / dt; vz += b * rz / dt;
+        double a = A, b = B, ay = A, by = B;
+        if (rh > TURN) { double k = Math.min(1, (rh - TURN) / TURN); a += (1 - a) * k; b += (1 - b) * k; }
+        if (Math.abs(ry) > TURN) { double k = Math.min(1, (Math.abs(ry) - TURN) / TURN); ay += (1 - ay) * k; by += (1 - by) * k; }
+        fx = ox + a * rx; fy = oy + ay * ry; fz = oz + a * rz;
+
+        double sx = still ? x - fx0 - vx * dt : rx, sy = still ? y - fy0 - vy * dt : ry, sz = still ? z - fz0 - vz * dt : rz;
+        vx += b * sx / dt; vy += by * sy / dt; vz += b * sz / dt;
 
         double sp = Math.sqrt(vx * vx + vz * vz), cap = 1.0 / TICK;
         if (sp > cap) { vx *= cap / sp; vz *= cap / sp; }
         if (Math.abs(vy) > cap * 2) vy = Math.signum(vy) * cap * 2;
-        conf = conf * 0.75 + 0.25 * (r < 0.04 ? 1 : r < 0.15 ? 0.5 : 0);
+        conf = conf * 0.75 + 0.25 * (rh < 0.04 ? 1 : rh < 0.15 ? 0.5 : 0);
+
+        boolean land = vy < LAND_VY && y >= was_y - 1e-6;
+        if (land) { fy = y; vy = 0; }
         st = t;
         lt = t;
         still = false;
-        blend(now, cx, cy, cz);
+        blend(now, cx, land ? Math.max(cy, y) : cy, cz);
     }
 
     void blend(double now, double cx, double cy, double cz) {
         double gx = at_x(now) - cx, gy = at_y(now) - cy, gz = at_z(now) - cz;
         if (gx * gx + gy * gy + gz * gz > 9) { bt = Double.NaN; return; }
         bx = cx; by = cy; bz = cz; bvx = dvx; bvy = dvy; bvz = dvz; bt = now;
+
+        double qvy = (at_y(now) - at_y(now - 10)) / 10;
+        if (gy > 0 ? dvy < qvy : dvy > qvy) bvy = qvy;
     }
 
     double bl(double now, double q, double qv, double b, double bv) {
 
-        double len = BLEND * Math.max(1, Math.min(3, jit / JIT_REF));
+        double len = calm > 0 ? CALM_BLEND : BLEND * Math.max(1, Math.min(3, jit / JIT_REF));
         if (Double.isNaN(bt) || now - bt >= len) return q;
         double u = (now - bt) / len, vb = bv + (qv - bv) * u, pa = b + vb * (now - bt);
         return pa + (q - pa) * u;
@@ -165,13 +195,13 @@ public final class MobSmooth {
     public double head() { return ydisp; }
 
     double miss(double x, double y, double z, double dt) {
-        double a = x - fx - vx * dt, b = y - fy - vy * dt, c = z - fz - vz * dt;
-        return Math.sqrt(a * a + b * b + c * c);
+        double a = x - fx - vx * dt, c = z - fz - vz * dt;
+        return Math.sqrt(a * a + c * c);
     }
 
     void put(double x, double y, double z, double t) {
         fx = x; fy = y; fz = z; vx = vy = vz = 0; st = t; lt = t; conf = 0; still = false;
-        bt = Double.NaN; dvx = dvy = dvz = 0; shown = false;
+        bt = Double.NaN; dvx = dvy = dvz = 0; shown = false; calm = 0;
     }
 
     public void tick() {
@@ -180,6 +210,9 @@ public final class MobSmooth {
         if (Double.isNaN(clock) || Math.abs(w - clock) > 500) clock = w;
         else { clock += TICK; clock += (w - clock) * 0.1; }
         double now = clock;
+
+        if (calm > 0) calm_t++;
+        if (calm > 0 && (still || conf > CALM_CONF || calm_t > 40) && --calm == 0) { double cx = dx(now), cy = dy(now), cz = dz(now); blend(now, cx, cy, cz); }
 
         if (!still && now - st > (per + 1) * TICK + Math.max(40, jit * 4)) {
 
@@ -200,6 +233,7 @@ public final class MobSmooth {
 
     double span(double now, boolean lead) {
         double age = now - st, full = (per + 1) * TICK;
+        if (calm > 0) return Math.max(0, Math.min(age, CALM_SPAN));
         if (age > full) age = full + (age - full) * 0.25;
         age = Math.min(age, full + TICK * 3);
         return Math.max(0, age + (lead ? LEAD * conf : 0));
@@ -215,5 +249,5 @@ public final class MobSmooth {
     double at_x(double now) { return fx + dsp(vx, now, true); }
     double at_z(double now) { return fz + dsp(vz, now, true); }
 
-    double at_y(double now) { double d = dsp(vy, now, true) * 0.5; return fy + Math.max(-0.5, Math.min(0.5, d)); }
+    double at_y(double now) { if (wet) return fy; double d = dsp(vy, now, true) * 0.5; return fy + Math.max(-0.5, Math.min(0.5, d)); }
 }

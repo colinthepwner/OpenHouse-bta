@@ -35,7 +35,79 @@ public final class Update {
     }
 
     public static Release latestMod(String gameVersion) throws IOException {
-        Map<String, Object> root = latest();
+        return mod_asset(latest(), gameVersion);
+    }
+
+    static final String LIST_API = "https://api.github.com/repos/colinthepwner/OpenHouse-bta/releases?per_page=30";
+    static final java.util.regex.Pattern IMPORTANT = java.util.regex.Pattern.compile("<!--\\s*important\\s*-->", java.util.regex.Pattern.CASE_INSENSITIVE);
+    static final java.util.regex.Pattern PROTO = java.util.regex.Pattern.compile("<!--\\s*protocol\\s*(\\d+)\\s*-->", java.util.regex.Pattern.CASE_INSENSITIVE);
+    static final long SETTLE = 2 * 3600_000L, STALE = 3 * 86400_000L;
+    static final int BATCH = 3;
+
+    public static Release mod_to_offer(String gameVersion) throws IOException {
+        Map<String, Object> r = held();
+        return r == null ? null : mod_asset(r, gameVersion);
+    }
+
+    public static Release openhost_to_offer() throws IOException {
+        Map<String, Object> r = held();
+        if (r == null) return null;
+        for (Map<String, Object> a : assets(r))
+            if (OPENHOST_ASSET.equals(Json.str(a.get("name")))) return release(Version.base(Json.str(r.get("tag_name"))), a);
+        throw new IOException("the newest release has no OpenHost.jar");
+    }
+
+    static Map<String, Object> held() throws IOException {
+        HttpURLConnection c = open(LIST_API, "application/vnd.github+json");
+        String body;
+        try (InputStream in = c.getInputStream()) { body = new String(readAll(in, 4 << 20), StandardCharsets.UTF_8); }
+
+        long now = c.getDate() > 0 ? c.getDate() : System.currentTimeMillis();
+        return pick(body, Version.VERSION, Version.PROTOCOL, now);
+    }
+
+    static Map<String, Object> pick(String body, String mine, int proto, long now) throws IOException {
+        Object all = Json.parse(body);
+        if (!(all instanceof List)) throw new IOException("GitHub's answer didn't make sense");
+        List<Map<String, Object>> missing = new ArrayList<>();
+        for (Object o : (List<?>) all) {
+            Map<String, Object> r = Json.obj(o);
+            if (r == null || Boolean.TRUE.equals(r.get("prerelease")) || Boolean.TRUE.equals(r.get("draft"))) continue;
+            String v = Version.base(Json.str(r.get("tag_name")));
+            if (v != null && Version.compare(v, mine) > 0) missing.add(r);
+        }
+        if (missing.isEmpty()) return null;
+        missing.sort((a, b) -> Version.compare(Version.base(Json.str(b.get("tag_name"))), Version.base(Json.str(a.get("tag_name")))));
+        boolean urgent = false;
+        for (Map<String, Object> r : missing) {
+            String t = Json.str(r.get("body"));
+            if (t == null) continue;
+            if (IMPORTANT.matcher(t).find()) urgent = true;
+            java.util.regex.Matcher m = PROTO.matcher(t);
+            if (m.find()) { try { if (Integer.parseInt(m.group(1)) != proto) urgent = true; } catch (NumberFormatException e) { urgent = true; } }
+        }
+        long newest = published(missing.get(0)), oldest = published(missing.get(missing.size() - 1));
+        return offer(missing.size(), newest, oldest, urgent, now) ? missing.get(0) : null;
+    }
+
+    static Release mod_to_offer(String body, String mine, String gameVersion, long now) throws IOException {
+        Map<String, Object> r = pick(body, mine, Version.PROTOCOL, now);
+        return r == null ? null : mod_asset(r, gameVersion);
+    }
+
+    static boolean offer(int behind, long newest_at, long oldest_at, boolean important, long now) {
+        if (important) return true;
+
+        if (newest_at - now >= 3600_000L) return true;
+        if (now - newest_at < SETTLE) return false;
+        return behind >= BATCH || now - oldest_at >= STALE;
+    }
+
+    static long published(Map<String, Object> r) {
+        try { return java.time.Instant.parse(Json.str(r.get("published_at"))).toEpochMilli(); } catch (Exception e) { return 0; }
+    }
+
+    static Release mod_asset(Map<String, Object> root, String gameVersion) throws IOException {
         String version = Version.base(Json.str(root.get("tag_name")));
         String exact = "openhouse-" + version + "+" + gameVersion + ".jar";
         Map<String, Object> pick = null;
@@ -54,10 +126,6 @@ public final class Update {
     }
 
     public static final String OPENHOST_ASSET = "OpenHost.jar";
-
-    public static Release latestOpenHost() throws IOException {
-        return latestAsset(OPENHOST_ASSET, "the newest release has no OpenHost.jar");
-    }
 
     static Release latestAsset(String name, String missing) throws IOException {
         Map<String, Object> root = latest();
@@ -117,7 +185,7 @@ public final class Update {
         for (byte b : md.digest()) hex.append(String.format("%02x", b & 0xff));
         if ((r.size > 0 && got != r.size) || (r.sha256 != null && !hex.toString().equals(r.sha256))) {
             part.delete();
-            throw new IOException("the download arrived damaged - try again");
+            throw new IOException("the download arrived damaged, try again");
         }
         if (done.exists() && !done.delete()) throw new IOException("can't replace " + done);
         if (!part.renameTo(done)) throw new IOException("can't move the download into place");

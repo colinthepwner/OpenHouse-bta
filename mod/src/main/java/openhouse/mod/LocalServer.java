@@ -217,7 +217,7 @@ public final class LocalServer {
                 for (ServerMods.Entry e : in) if (bad.contains(e.id)) { skip.put(e.id, e.version); names.add(e.name); }
                 ServerMods.remember(skip);
                 OpenHouseMod.LOG.info("leaving {} out of the Open to Friends server - it stopped the server from starting (it still runs in the game)", names);
-                set(State.STARTING, "Leaving out " + String.join(", ", names) + " (can't run on a server) - starting again...");
+                set(State.STARTING, "Leaving out " + String.join(", ", names) + " (can't run on a server). Starting again...");
             }
         } catch (Exception e) {
             OpenHouseMod.LOG.warn("Open to Friends failed", e);
@@ -464,7 +464,7 @@ public final class LocalServer {
         } else if (line.contains("FAILED TO BIND")) {
             set(State.FAILED, "The server couldn't use its port.");
         } else if (line.contains("Incompatible mods found") || line.contains("Exception in thread \"main\"")) {
-            if (state == State.STARTING) detail = "The server hit a problem with your mods - see openhouse/server/console.log";
+            if (state == State.STARTING) detail = "The server hit a problem with your mods. See openhouse/server/console.log";
         }
     }
 
@@ -549,7 +549,7 @@ public final class LocalServer {
         try { Integer r = GameSettings.RENDER_DISTANCE.value; if (r != null) render = r; } catch (Throwable ignored) { }
         render = Math.max(3, Math.min(32, render));
         try (Writer w = new OutputStreamWriter(new FileOutputStream(new File(dir, "server.properties")), StandardCharsets.UTF_8)) {
-            w.write("# Written by OpenHouse for \"Open to Friends\" - rewritten each time a world is opened.\n");
+            w.write("# Written by OpenHouse for \"Open to Friends\", rewritten each time a world is opened.\n");
             w.write("server-ip=\n");
             w.write("server-port=" + port + "\n");
             w.write("online-mode=" + online + "\n");
