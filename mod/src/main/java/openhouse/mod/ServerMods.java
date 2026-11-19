@@ -82,7 +82,7 @@ public final class ServerMods {
         File f = memoryFile();
         f.getParentFile().mkdirs();
         try (OutputStreamWriter w = new OutputStreamWriter(new FileOutputStream(f), StandardCharsets.UTF_8)) {
-            w.write("# Mods that stopped the Open to Friends server from starting - OpenHouse leaves them out of\n"
+            w.write("# Mods that stopped the Open to Friends server from starting. OpenHouse leaves them out of\n"
                     + "# it (they still run in the game). mod id = version; a newer version gets tried again.\n"
                     + "# Delete a line (or this file) to try a mod on the server again.\n");
             for (Map.Entry<String, String> e : all.entrySet()) w.write(e.getKey() + "=" + e.getValue() + "\n");

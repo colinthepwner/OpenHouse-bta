@@ -70,6 +70,11 @@ public final class ScreenOpenToFriends extends Screen {
         if (key == Keyboard.KEY_ESCAPE && cancel.enabled) buttonClicked(cancel);
     }
 
+    private void below(int text_y) {
+        if (cancel == null) return;
+        cancel.yPosition = Math.min(height - 24, Math.max(height / 4 + 132, text_y + 9 + 12));
+    }
+
     @Override public void render(int mx, int my, float partialTick) {
         renderBackground();
         I18n t = I18n.getInstance();
@@ -93,6 +98,7 @@ public final class ScreenOpenToFriends extends Screen {
                 ly += 17;
             }
             drawStringCenteredShadow(fontRenderer, t.translateKey("gui.openhouse.lan.crashed.details"), cx, ly + 6, 0xA0A0A0);
+            below(ly + 6);
             super.render(mx, my, partialTick);
             return;
         }
@@ -108,6 +114,7 @@ public final class ScreenOpenToFriends extends Screen {
             boolean failed = s == LocalServer.State.FAILED;
             String line = failed ? server.detail : t.translateKey(s == LocalServer.State.STOPPED ? "gui.openhouse.lan.lost.saved" : "gui.openhouse.lan.lost.saving");
             drawStringCenteredShadow(fontRenderer, line, cx, ly + 14, failed ? 0xFF6060 : 0xA0A0A0);
+            below(ly + 14);
             super.render(mx, my, partialTick);
             return;
         }

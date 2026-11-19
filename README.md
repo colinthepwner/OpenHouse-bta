@@ -90,8 +90,8 @@ Options > Player > Hurt Sound has a **Custom** setting with a mic button next to
 - Hold the button to record, or click it and say something.
 - Right-click it to use sound files instead (`.wav`, `.mp3`, `.ogg` or `.opus`). Pick up to 3 and
   one of them plays each time.
-- Only a short sound is kept. Everyone with OpenHouse or Rocket Edition hears it when you get hurt,
-  and when you die.
+- Only a short sound is kept, evened out so it's never too loud or too quiet. Everyone with
+  OpenHouse or Rocket Edition hears it when you get hurt, and when you die.
 
 # Rewind
 The rewind button next to the folder in your world list shows your world's saves on a timeline,
@@ -126,7 +126,8 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 - OpenHouse can be added to your existing Babric server: put the mod in its `mods` folder and
   type `/oh` in the console for the code.
 - Everyone in a world needs a matching version of OpenHouse. Close versions usually work together,
-  and when they don't, OH tells you and can update itself with one click.
+  and when they don't, OH tells you and can update itself with one click. Small updates wait until
+  a few have piled up, so you aren't asked every time.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
   that goes with their name.
 - Two people can't play under the same name at once.
@@ -137,7 +138,7 @@ The helper doesn't hand out mods, so everyone needs the same ones.
   your mod settings along with your mods.
 - If a mod crashes your open world, OH tells you which one, and keeps it out of the server next
   time if it only belongs in your own game.
-- A folder a mod keeps beside the game - BTEmu's `roms`, say - goes to your world's server, and
+- A folder a mod keeps beside the game (BTEmu's `roms`, say) goes to your world's server, and
   players can add their own, so everyone can use what anyone brought. `share-folders` in
   `openhouse.properties` names the folders (`roms` by default, `off` for none).
 - With BTA's Discord presence on, click your room code in the pause menu to show it on your

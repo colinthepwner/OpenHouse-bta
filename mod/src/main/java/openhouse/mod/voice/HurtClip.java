@@ -24,7 +24,8 @@ public final class HurtClip {
     static final int SOUND_MAX = 40, GAP = 6, CUT_FADE = 10;
     static final int TAIL = 8, PRE = 2;
     static final int GATE_SPAN = 150;
-    static final float LEVEL = 3200, PEAK = 24000;
+
+    static final float LEVEL = 4800, PEAK = 24000;
     static volatile byte[] clip;
 
     static volatile byte[][] more = new byte[0][];
@@ -137,7 +138,7 @@ public final class HurtClip {
 
     static final long FILE_MAX_BYTES = 20L << 20;
     static final int FILE_MAX_FRAMES = 50 * 20;
-    static final float GATE_CLIPPED = 0.005F, GATE_CREST = 2.5F, GATE_SPEECH = 0.45F;
+    static final float GATE_SPEECH = 0.45F;
 
     static final float GATE_FLUX = 3.0F, FLUX_LOW = 2.5F, GATE_STILL = 0.3F;
     static final int SNIP = 30;
@@ -165,7 +166,13 @@ public final class HurtClip {
         String why = null;
         for (int i = 0; i < fs.size() && i < VoiceWire.HURT_MAX; i++) {
             said = null;
-            short[] pcm = from_file(fs.get(i));
+            short[] pcm;
+
+            try { pcm = from_file(fs.get(i)); } catch (Exception e) {
+                openhouse.mod.OpenHouseMod.LOG.info("[voice] hurt sound file {}: {}", fs.get(i).getName(), e.toString());
+                pcm = null;
+                said = "gui.openhouse.hurt.badfile";
+            }
             if (pcm != null) got.add(pcm);
             if (said != null) why = said;
         }
@@ -207,7 +214,8 @@ public final class HurtClip {
         } finally { p.close(); }
         float speech = judged == 0 ? 0 : voiced / (float) judged;
         float[] fx = flux(all, rr, th, a, b);
-        boolean ok = span <= GATE_SPAN && clip_frac < GATE_CLIPPED && crest >= GATE_CREST && (VoiceProc.denoise_broken() || speech >= GATE_SPEECH)
+
+        boolean ok = span <= GATE_SPAN && (VoiceProc.denoise_broken() || speech >= GATE_SPEECH)
                 && fx[0] >= GATE_FLUX && fx[1] < GATE_STILL;
         openhouse.mod.OpenHouseMod.LOG.info("[voice] hurt sound file {}: {} s, sound {} s, clipped {}%, crest {}, speech {}%, flux {} still {}% -> {}", f.getName(),
                 String.format("%.1f", all.length / 48000F), String.format("%.2f", span / 50F), String.format("%.2f", clip_frac * 100), String.format("%.1f", crest), Math.round(speech * 100),
@@ -296,12 +304,17 @@ public final class HurtClip {
         if (opus) {
             return opus_pcm(f);
         } else if (mp3) {
-            try (java.io.InputStream in = mp3_body(f); fr.delthas.javamp3.Sound snd = new fr.delthas.javamp3.Sound(in)) {
+
+            try (java.io.InputStream in = mp3_body(f); openhouse.mod.voice.mp3.Sound snd = new openhouse.mod.voice.mp3.Sound(in)) {
                 af = snd.getAudioFormat();
                 long max = (long) (af.getSampleRate() * af.getChannels() * 2 * 30);
                 ByteArrayOutputStream bo = new ByteArrayOutputStream();
                 byte[] b = new byte[65536];
-                for (int r; bo.size() < max && (r = snd.read(b)) > 0; ) bo.write(b, 0, r);
+                try {
+                    for (int r; bo.size() < max && (r = snd.read(b)) > 0; ) bo.write(b, 0, r);
+                } catch (Exception e) {
+                    if (bo.size() < 4800) throw e;
+                }
                 data = bo.toByteArray();
             }
         } else if (ogg) {
@@ -396,6 +409,33 @@ public final class HurtClip {
         return (float) Math.sqrt(s / Math.max(1, len));
     }
 
+    static float loudness(short[] pcm) {
+        int nf = pcm.length / Voice.FRAME;
+        if (nf == 0) return 0;
+        float[] fr = new float[nf];
+        float top = 0;
+        double x1 = 0, x2 = 0, y1 = 0, y2 = 0, z1 = 0, z2 = 0;
+        for (int f = 0; f < nf; f++) {
+            double e = 0;
+            for (int i = f * Voice.FRAME; i < (f + 1) * Voice.FRAME; i++) {
+                double x = pcm[i];
+                double y = 1.53512485958697 * x - 2.69169618940638 * x1 + 1.19839281085285 * x2 + 1.69065929318241 * y1 - 0.73248077421585 * y2;
+                x2 = x1; x1 = x;
+                double z = y - 2 * y1 + y2 + 1.99004745483398 * z1 - 0.99007225036621 * z2;
+                y2 = y1; y1 = y;
+                z2 = z1; z1 = z;
+                e += z * z;
+            }
+            fr[f] = (float) Math.sqrt(e / Voice.FRAME);
+            top = Math.max(top, fr[f]);
+        }
+        float th = Math.max(VoiceProc.MIN_RMS * 1.5F, top * 0.1F);
+        double e = 0;
+        int cnt = 0;
+        for (float r : fr) if (r > th) { e += (double) r * r; cnt++; }
+        return (float) Math.sqrt(e / Math.max(1, cnt));
+    }
+
     static short[] trim(List<short[]> frames) {
         int n = frames.size();
         float[] rms = new float[n];
@@ -418,14 +458,15 @@ public final class HurtClip {
         int len = end - a;
         tail_from = Math.max(0, Math.min(len, tail_from));
         int fade_n = Math.max(1, len - tail_from);
-        double e = 0;
-        int cnt = 0, pk = 1;
+        short[] raw = new short[(end - a) * Voice.FRAME];
+        int pk = 1;
         for (int i = a; i < end; i++) {
-            if (rms[i] > th) { e += (double) rms[i] * rms[i]; cnt++; }
-            for (short s : frames.get(i)) pk = Math.max(pk, Math.abs(s));
+            short[] f = frames.get(i);
+            System.arraycopy(f, 0, raw, (i - a) * Voice.FRAME, Voice.FRAME);
+            for (short s : f) pk = Math.max(pk, Math.abs(s));
         }
-        float loud = (float) Math.sqrt(e / Math.max(1, cnt));
-        float lg = Math.max(0.25F, Math.min(6, LEVEL / Math.max(1, loud)));
+
+        float lg = Math.min(6, LEVEL / Math.max(1, loudness(raw)));
         lg = Math.min(lg, PEAK / pk);
         short[] pcm = new short[len * Voice.FRAME];
         for (int i = 0; i < len; i++) {
@@ -540,12 +581,10 @@ public final class HurtClip {
     }
 
     static void cap(short[] pcm) {
-        int n = pcm.length / Voice.FRAME, pk = 1, cnt = 0;
-        double e = 0;
+        int pk = 1;
         for (short s : pcm) pk = Math.max(pk, Math.abs(s));
-        for (int i = 0; i < n; i++) { float r = rms(pcm, i * Voice.FRAME, Voice.FRAME); if (r > VoiceProc.MIN_RMS * 1.5F) { e += (double) r * r; cnt++; } }
-        float loud = (float) Math.sqrt(e / Math.max(1, cnt));
-        float g = Math.min(1, Math.min(LEVEL * 1.25F / Math.max(1, loud), PEAK / pk));
+
+        float g = Math.min(1, Math.min(LEVEL * 1.25F / Math.max(1, loudness(pcm)), PEAK / pk));
         if (g >= 0.999F) return;
         for (int i = 0; i < pcm.length; i++) pcm[i] = (short) (pcm[i] * g);
     }

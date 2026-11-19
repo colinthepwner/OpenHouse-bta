@@ -26,7 +26,7 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                 .then(ArgumentBuilderLiteral.<CommandSource>literal("new").requires(RoomCommand::owner)
                         .executes(c -> {
                             room.changeCode("");
-                            c.getSource().sendMessage("Getting a new room code - the old one stops working. /oh shows it in a moment.");
+                            c.getSource().sendMessage("Getting a new room code. The old one stops working. /oh shows it in a moment.");
                             return 1;
                         }))
                 .then(ArgumentBuilderLiteral.<CommandSource>literal("set").requires(RoomCommand::owner)
@@ -40,7 +40,7 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                                         return 0;
                                     }
                                     room.changeCode(code);
-                                    c.getSource().sendMessage("Room code set to " + code + ". /oh shows when it's live - or tells you if another server already uses it.");
+                                    c.getSource().sendMessage("Room code set to " + code + ". /oh shows when it's live, or tells you if another server already uses it.");
                                     return 1;
                                 })))
                 .then(ArgumentBuilderLiteral.<CommandSource>literal("on").requires(RoomCommand::owner)
@@ -59,20 +59,20 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                 .then(ArgumentBuilderLiteral.<CommandSource>literal("password").requires(RoomCommand::owner)
                         .executes(c -> {
                             c.getSource().sendMessage(room.password.isEmpty()
-                                    ? "No password - anyone with the code can join. Set one: /oh password <password>"
+                                    ? "No password. Anyone with the code can join. Set one: /oh password <password>"
                                     : "A password is set. Change it: /oh password <new>, or remove it: /oh password off");
                             return 1;
                         })
                         .then(ArgumentBuilderLiteral.<CommandSource>literal("off").executes(c -> {
                             room.setPassword("");
                             ServerRoom.LOG.info("the server password was removed");
-                            c.getSource().sendMessage("Password removed - anyone with the code can join.");
+                            c.getSource().sendMessage("Password removed. Anyone with the code can join.");
                             return 1;
                         }))
                         .then(ArgumentBuilderRequired.<CommandSource, String>argument("password", ArgumentTypeString.greedyString())
                                 .executes(c -> {
                                     String pw = ArgumentTypeString.getString(c, "password");
-                                    if (pw.trim().isEmpty()) { c.getSource().sendMessage("A password can't be empty - /oh password off removes it."); return 0; }
+                                    if (pw.trim().isEmpty()) { c.getSource().sendMessage("A password can't be empty. /oh password off removes it."); return 0; }
                                     room.setPassword(pw);
 
                                     ServerRoom.LOG.info("the server password was changed");
@@ -83,12 +83,12 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                         .executes(c -> { whitelistStatus(c.getSource(), room); return 1; })
                         .then(ArgumentBuilderLiteral.<CommandSource>literal("on").executes(c -> {
                             room.setWhitelist(true);
-                            c.getSource().sendMessage("Whitelist on - only listed players (and ops) can join. " + listLine(room));
+                            c.getSource().sendMessage("Whitelist on. Only listed players (and ops) can join. " + listLine(room));
                             return 1;
                         }))
                         .then(ArgumentBuilderLiteral.<CommandSource>literal("off").executes(c -> {
                             room.setWhitelist(false);
-                            c.getSource().sendMessage("Whitelist off - anyone with the code can join.");
+                            c.getSource().sendMessage("Whitelist off. Anyone with the code can join.");
                             return 1;
                         }))
                         .then(ArgumentBuilderLiteral.<CommandSource>literal("list").executes(c -> {
@@ -101,7 +101,7 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                                             String n = ArgumentTypeString.getString(c, "name");
                                             if (!validName(n)) { c.getSource().sendMessage("\"" + n + "\" can't be a player name."); return 0; }
                                             boolean added = room.whitelistAdd(n);
-                                            c.getSource().sendMessage(added ? n + " is on the whitelist." + (room.whitelist ? "" : " (It's off - /oh whitelist on)") : n + " was already on the whitelist.");
+                                            c.getSource().sendMessage(added ? n + " is on the whitelist." + (room.whitelist ? "" : " (It's off: /oh whitelist on)") : n + " was already on the whitelist.");
                                             return 1;
                                         })))
                         .then(ArgumentBuilderLiteral.<CommandSource>literal("remove")
@@ -124,15 +124,15 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
                                 .executes(c -> {
                                     String typed = ArgumentTypeString.getString(c, "size");
                                     String v = typed.equalsIgnoreCase("auto") ? "auto" : openhouse.mod.OpenHost.memoryValue(typed);
-                                    if (v == null) { c.getSource().sendMessage("\"" + typed + "\" isn't a memory size - like 4G or 2048M (512M at least), or auto."); return 0; }
+                                    if (v == null) { c.getSource().sendMessage("\"" + typed + "\" isn't a memory size. Try something like 4G or 2048M (512M at least), or auto."); return 0; }
                                     HostUi.write(openhouse.mod.OpenHost.MEMORY_KEY, v);
-                                    c.getSource().sendMessage("Memory: " + (v.equals("auto") ? "automatic" : v.replace("G", " GB").replace("M", " MB")) + " from the next start - /oh restart to use it now.");
+                                    c.getSource().sendMessage("Memory: " + (v.equals("auto") ? "automatic" : v.replace("G", " GB").replace("M", " MB")) + " from the next start. /oh restart to use it now.");
                                     return 1;
                                 })))
 
                 .then(ArgumentBuilderLiteral.<CommandSource>literal("restart").requires(s -> owner(s) && ServerRoom.OPENHOST)
                         .executes(c -> {
-                            c.getSource().sendMessage("Restarting - the world is saved first; everyone can join again in a minute.");
+                            c.getSource().sendMessage("Restarting. The world is saved first; everyone can join again in a minute.");
                             ServerRoom.restart(net.minecraft.server.MinecraftServer.getInstance());
                             return 1;
                         }))
@@ -186,14 +186,14 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
         String code = room.liveCode;
         String taken = room.takenCode;
         if (code == null && taken != null) {
-            s.sendMessage("Room code " + taken + " is taken - another server is using it." + (s.hasAdmin() ? " Pick another: /oh set <name>" : ""));
+            s.sendMessage("Room code " + taken + " is taken: another server is using it." + (s.hasAdmin() ? " Pick another: /oh set <name>" : ""));
             return;
         }
         if (code == null) {
-            s.sendMessage("The room is starting (or can't reach the matchmaking server) - try again in a moment.");
+            s.sendMessage("The room is starting (or can't reach the matchmaking server). Try again in a moment.");
             return;
         }
-        s.sendMessage("Room code: " + code + "  - join with Multiplayer > Room Code, or the OpenHouse helper.");
+        s.sendMessage("Room code: " + code + ". Join with Multiplayer > Room Code, or the OpenHouse helper.");
         int n = room.players();
         if (n > 0) s.sendMessage(n + (n == 1 ? " player is" : " players are") + " connected through the room.");
         if (owner(s)) s.sendMessage("Password: " + (room.password.isEmpty() ? "none" : "set") + ".  Whitelist: " + (room.whitelist ? "on (" + room.whitelisted().size() + ")" : "off") + ".  (/oh password, /oh whitelist)");

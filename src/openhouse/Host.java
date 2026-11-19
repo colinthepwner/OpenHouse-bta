@@ -95,7 +95,7 @@ public final class Host {
                         String c = line.substring(6).trim();
                         Consumer<String> t = onTaken;
                         if (t != null) t.accept(c);
-                        else if (!takenSaid) { takenSaid = true; log.accept("room code " + c + " is in use by another server - waiting for it to come free"); }
+                        else if (!takenSaid) { takenSaid = true; log.accept("room code " + c + " is in use by another server, waiting for it to come free"); }
                     } else if (line.startsWith("PLAYERS ")) {
                         players = Integer.parseInt(line.substring(8).trim());
                         log.accept(players + (players == 1 ? " player" : " players") + " connected by room code");

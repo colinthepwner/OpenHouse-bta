@@ -20,7 +20,9 @@ public final class Updater {
         started = true;
         Thread t = new Thread(() -> {
             try {
-                latest = check();
+
+                Update.Release r = Update.mod_to_offer(gameVersion());
+                latest = r == null ? NONE : r;
             } catch (Exception e) {
                 OpenHouseMod.LOG.info("couldn't check for an OpenHouse update: {}", e.toString());
                 latest = NONE;

@@ -35,7 +35,7 @@ public final class OpenHost {
         File self = Rtc.self();
         File here = serverFolder(self, args);
         File data = new File(here, "openhouse");
-        say("OpenHost " + Version.VERSION + " - a Better than Adventure " + Rtc.BTA_SERVER_VERSION + " server that players join by room code");
+        say("OpenHost " + Version.VERSION + ": a Better than Adventure " + Rtc.BTA_SERVER_VERSION + " server that players join by room code");
         say("Server folder: " + here);
         removeUpdateCopy(self);
         if (!noUpdate && System.getenv("OPENHOUSE_UPDATED") == null && selfUpdate(self, data, here, args)) return;
@@ -49,7 +49,7 @@ public final class OpenHost {
         try {
             Consumer<String> status = progress();
             String own = Rtc.adoptBtaServer(lib, here, self);
-            if (own != null) say("Using this folder's own BTA server (" + own + ") - no download needed");
+            if (own != null) say("Using this folder's own BTA server (" + own + "), no download needed");
             serverJar = Rtc.btaServer(lib, status);
             loader = Rtc.babricLoader(lib, status);
         } catch (IOException e) {
@@ -59,7 +59,7 @@ public final class OpenHost {
             return;
         }
         File mods = new File(here, "mods");
-        if (!mods.isDirectory() && !mods.mkdirs()) say("(can't create " + mods + " - starting without a mods folder)");
+        if (!mods.isDirectory() && !mods.mkdirs()) say("(can't create " + mods + ", starting without a mods folder)");
 
         setAsideServerCrashers(mods);
 
@@ -72,7 +72,7 @@ public final class OpenHost {
         if (ui.equals("console") && !console && !askedNogui && !java.awt.GraphicsEnvironment.isHeadless()) {
             if (relaunchInConsole(self, here, args)) return;
 
-            say("Couldn't open a terminal for the console look - using the OpenHost window this time");
+            say("Couldn't open a terminal for the console look, so using the OpenHost window this time");
             ui = "modern";
         }
         File flat = null;
@@ -192,9 +192,9 @@ public final class OpenHost {
         File[] jars = mods.listFiles((d, n) -> n.toLowerCase(java.util.Locale.ROOT).endsWith(".jar"));
         Map<String, List<File>> byId = ModCrash.idsOf(jars == null ? java.util.Collections.<File>emptyList() : java.util.Arrays.asList(jars));
         String id = ModCrash.crashMod(story, byId);
-        if (id == null) { say("The server crashed - the error is above. (No mod in mods/ to blame for it.)"); return false; }
+        if (id == null) { say("The server crashed. The error is above. (No mod in mods/ to blame for it.)"); return false; }
         if (!ModCrash.clientOnlyCrash(story)) {
-            say("The server crashed in the mod " + id + " - the error is above. It may hold blocks or items of your world, so it's left in: update or remove it yourself.");
+            say("The server crashed in the mod " + id + ". The error is above. It may hold blocks or items of your world, so it's left in: update or remove it yourself.");
             return false;
         }
         boolean any = false;
@@ -203,7 +203,7 @@ public final class OpenHost {
             if (off.exists()) off.delete();
             if (j.renameTo(off)) {
                 any = true;
-                say("mods/" + j.getName() + " (" + id + ") crashed the server reaching for a part of the game only players have - it's for players' own games. Set it aside as " + off.getName() + ".");
+                say("mods/" + j.getName() + " (" + id + ") crashed the server reaching for a part of the game only players have. It's for players' own games. Set it aside as " + off.getName() + ".");
             }
         }
         return any;
@@ -221,9 +221,9 @@ public final class OpenHost {
             File off = new File(mods, j.getName() + ".disabled");
             if (off.exists()) off.delete();
             if (j.renameTo(off))
-                say("mods/" + j.getName() + " is for players' own games: " + why + ", which a server hasn't got - it would crash the server as soon as it ran. Set it aside as " + off.getName() + ".");
+                say("mods/" + j.getName() + " is for players' own games: " + why + ", which a server hasn't got, so it would crash the server as soon as it ran. Set it aside as " + off.getName() + ".");
             else
-                say("mods/" + j.getName() + " can't run on a server (" + why + "), and it can't be renamed - take it out of mods/.");
+                say("mods/" + j.getName() + " can't run on a server (" + why + "), and it can't be renamed. Take it out of mods/.");
         }
     }
 
@@ -240,9 +240,9 @@ public final class OpenHost {
                 if (off.exists()) off.delete();
                 if (j.renameTo(off)) {
                     any = true;
-                    say("mods/" + j.getName() + " (" + id + ") can't run on a server - it's for players' own games. Set it aside as " + off.getName() + ".");
+                    say("mods/" + j.getName() + " (" + id + ") can't run on a server. It's for players' own games. Set it aside as " + off.getName() + ".");
                 } else {
-                    say("mods/" + j.getName() + " (" + id + ") stops the server from starting, and it can't be renamed - take it out of mods/.");
+                    say("mods/" + j.getName() + " (" + id + ") stops the server from starting, and it can't be renamed. Take it out of mods/.");
                 }
             }
         }
@@ -485,7 +485,7 @@ public final class OpenHost {
             for (File j : jars) {
                 if (!UpdateSwap.isOpenHouseMod(j)) { others.add(j); continue; }
                 ours = true;
-                say("mods/" + j.getName() + " is OpenHouse, and OpenHost brings its own - left out of this run (the file stays as it is)");
+                say("mods/" + j.getName() + " is OpenHouse, and OpenHost brings its own, so it's left out of this run (the file stays as it is)");
             }
         }
         if (!ours) {
@@ -533,15 +533,15 @@ public final class OpenHost {
             busy = String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("in use");
         }
         if (busy) {
-            tell("Port " + port + " is already in use - most likely the server this folder belongs to (or another) is running right now.\n\n"
-                    + "Stop it first: two servers can't share one world - the world would be damaged.");
+            tell("Port " + port + " is already in use. Most likely the server this folder belongs to (or another) is running right now.\n\n"
+                    + "Stop it first. Two servers can't share one world, and the world would be damaged.");
             return false;
         }
 
         int format = worldFormat(new File(world, "level.dat"));
         if (format > WORLD_FORMAT) {
             tell("The world \"" + worldName + "\" was made by a newer Better than Adventure than " + Rtc.BTA_SERVER_VERSION
-                    + " (save format " + format + "), which OpenHost runs - it can't open it.\n\nUse a newer OpenHost, or another world (level-name in server.properties).");
+                    + " (save format " + format + "), which OpenHost runs, so it can't open it.\n\nUse a newer OpenHost, or another world (level-name in server.properties).");
             return false;
         }
         if (format > 0 && format < WORLD_FORMAT) return convertOlderWorld(here, world, worldName, format, props);
@@ -551,7 +551,7 @@ public final class OpenHost {
     static boolean convertOlderWorld(File here, File world, String worldName, int format, java.util.Properties props) {
         File copy = new File(world.getParentFile(), world.getName() + "-before-bta-" + Rtc.BTA_SERVER_VERSION);
         String what = "The world \"" + worldName + "\" was made by an older Better than Adventure (save format " + format + ").\n\n"
-                + "OpenHost runs BTA " + Rtc.BTA_SERVER_VERSION + ", which converts the world when it opens it - after that, the older\n"
+                + "OpenHost runs BTA " + Rtc.BTA_SERVER_VERSION + ", which converts the world when it opens it. After that, the older\n"
                 + "server can't open it any more. OpenHost keeps a copy of it as it is now, in \"" + copy.getName() + "\".";
 
         boolean go = "true".equalsIgnoreCase(props.getProperty(CONVERT_KEY, "").trim()) || copy.exists();
@@ -573,7 +573,7 @@ public final class OpenHost {
             try {
                 copyTree(world.toPath(), copy.toPath());
             } catch (IOException e) {
-                tell("Couldn't copy the world before converting it (" + e.getMessage() + ") - not starting, nothing was changed.");
+                tell("Couldn't copy the world before converting it (" + e.getMessage() + "). Not starting, nothing was changed.");
                 return false;
             }
         }
@@ -678,9 +678,9 @@ public final class OpenHost {
     static boolean selfUpdate(File self, File data, File here, String[] args) {
         try {
             if (!self.isFile() || self.getName().equals(UPDATE_COPY)) return false;
-            Update.Release r = Update.latestOpenHost();
-            if (!r.newer()) return false;
-            say("OpenHost " + r.version + " is out (this is " + Version.VERSION + ") - updating...");
+            Update.Release r = Update.openhost_to_offer();
+            if (r == null || !r.newer()) return false;
+            say("OpenHost " + r.version + " is out (this is " + Version.VERSION + "), updating...");
             File jar = Update.download(r, new File(data, "update"), null);
             File run = new File(self.getParentFile(), UPDATE_COPY);
             java.nio.file.Files.copy(jar.toPath(), run.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -697,7 +697,7 @@ public final class OpenHost {
             System.exit(code);
             return true;
         } catch (Exception e) {
-            say("(couldn't check for or get a newer OpenHost: " + (e.getMessage() == null ? e.toString() : e.getMessage()) + " - carrying on with " + Version.VERSION + ")");
+            say("(couldn't check for or get a newer OpenHost: " + (e.getMessage() == null ? e.toString() : e.getMessage()) + ", carrying on with " + Version.VERSION + ")");
             return false;
         }
     }

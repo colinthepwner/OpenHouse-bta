@@ -212,7 +212,7 @@ public final class Rtc {
         String got = sha256(tmp);
         if (!want.equals(got)) {
             tmp.delete();
-            throw new IOException(name + " didn't match its expected checksum - not using it");
+            throw new IOException(name + " didn't match its expected checksum, not using it");
         }
         if (f.exists()) f.delete();
         if (!tmp.renameTo(f)) throw new IOException("can't move " + tmp + " to " + f);

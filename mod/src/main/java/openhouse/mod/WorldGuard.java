@@ -296,7 +296,7 @@ public final class WorldGuard {
                 File old = new File(world.getParentFile(), world.getName() + ".openhouse-old");
 
                 if (old.exists()) finishRewinds(world.getParentFile());
-                if (old.exists()) throw new IOException(old.getName() + " is still there - move it out of saves first");
+                if (old.exists()) throw new IOException(old.getName() + " is still there. Move it out of saves first");
                 Files.write(new File(v, CHECKED).toPath(), CHECK_VERSION.getBytes(StandardCharsets.UTF_8));
                 Files.deleteIfExists(new File(v, "session.lock").toPath());
                 if (world.exists() && !world.renameTo(old)) throw new IOException("the world folder is in use");

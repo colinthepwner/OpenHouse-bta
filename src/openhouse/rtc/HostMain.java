@@ -186,10 +186,10 @@ public final class HostMain {
         if (last != null && now - last < 60000) return;
         String v = openhouse.Version.VERSION;
         String line = theirs == null
-                ? "A player tried to join with an old OpenHouse (before 1.0.2) - this server runs " + v + ", so they were asked to update."
+                ? "A player tried to join with an old OpenHouse (before 1.0.2). This server runs " + v + ", so they were asked to update."
                 : openhouse.Version.compare(theirs, v) < 0
-                ? "A player tried to join with OpenHouse " + openhouse.Version.base(theirs) + ", older than this server's " + v + " - they were asked to update."
-                : "A player tried to join with OpenHouse " + openhouse.Version.base(theirs) + ", newer than this server's " + v + " - update this server to let them in.";
+                ? "A player tried to join with OpenHouse " + openhouse.Version.base(theirs) + ", older than this server's " + v + ", so they were asked to update."
+                : "A player tried to join with OpenHouse " + openhouse.Version.base(theirs) + ", newer than this server's " + v + ". Update this server to let them in.";
         synchronized (System.out) { System.out.println("WARN " + line); System.out.flush(); }
     }
 
