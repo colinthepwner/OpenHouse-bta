@@ -142,7 +142,7 @@ public final class JoinMain {
                 Socket s = ss.accept();
                 s.setTcpNoDelay(true);
                 Link l = new Link(s);
-                Thread t = new Thread(l::begin, "openhouse link");
+                Thread t = new Thread(() -> { learn_host(); l.begin(); }, "openhouse link");
                 t.setDaemon(true);
                 t.start();
             } catch (IOException e) {
@@ -298,7 +298,9 @@ public final class JoinMain {
                         if (m == null) throw new IOException("the host didn't send its mod list");
 
                         if ((Boolean) m[0]) { modDrop(); out("MODLIST none"); return; }
-                        out("MODLIST " + new String((byte[]) m[1], StandardCharsets.UTF_8));
+                        String list = new String((byte[]) m[1], StandardCharsets.UTF_8);
+                        heard_host(list);
+                        out("MODLIST " + list);
                     } else if (line.startsWith("MODGET\t")) {
                         String[] parts = line.split("\t");
                         java.io.File dir = new java.io.File(parts[1]);
@@ -324,6 +326,38 @@ public final class JoinMain {
         }, "openhouse mods");
         t.setDaemon(true);
         t.start();
+    }
+
+    static volatile String host_ver;
+    static volatile Object host_proto;
+    static volatile boolean host_known;
+
+    static void heard_host(String list) {
+        try {
+            Map<String, Object> root = Json.obj(Json.parse(list));
+            if (root == null) return;
+            host_ver = Json.str(root.get("openhouse"));
+            host_proto = root.get("ohp");
+            host_known = true;
+        } catch (RuntimeException ignored) { }
+    }
+
+    static void learn_host() {
+        if (host_known) return;
+        synchronized (modTurn) {
+            if (host_known) return;
+            host_known = true;
+            try {
+                modConnect();
+                modSend("LIST");
+                Object[] m = modInbox.poll(20, java.util.concurrent.TimeUnit.SECONDS);
+                if (m != null && !(Boolean) m[0]) heard_host(new String((byte[]) m[1], StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                debug("couldn't ask the host its version first: " + e);
+            } finally {
+                modDrop();
+            }
+        }
     }
 
     static void modConnect() throws Exception {
@@ -532,7 +566,8 @@ public final class JoinMain {
                                     "type", "data", "connectionId", cid, "label", mods ? MODS_LABEL : cid,
                                     "serialization", "raw", "reliable", Boolean.TRUE,
 
-                                    "oh", openhouse.Version.VERSION)));
+                                    "oh", mods ? openhouse.Version.VERSION : openhouse.Version.speak_as(host_ver, host_proto),
+                                    "ohp", openhouse.Version.PROTOCOL)));
                         }
                         public void onFailure(String e) { log("setLocalDescription: " + e); close(); }
                     });

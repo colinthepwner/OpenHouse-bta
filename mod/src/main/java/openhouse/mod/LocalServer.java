@@ -282,6 +282,10 @@ public final class LocalServer {
                 share.add(openhouse.ModShare.extra(copy, "openhouse:uselessnumerical", "the world's id table"));
             }
 
+            List<openhouse.ModShare.Mod> orig = openhouse.ModShare.originals(FabricLoader.getInstance().getGameDir().toFile());
+            if (!orig.isEmpty()) OpenHouseMod.LOG.info("sharing {} original mod file{} that mods here read their art from", orig.size(), orig.size() == 1 ? "" : "s");
+            share.addAll(orig);
+
             try {
                 net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
                 if (mc != null && mc.texturePackList != null)

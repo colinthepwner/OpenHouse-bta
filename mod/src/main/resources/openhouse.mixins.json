@@ -5,7 +5,7 @@
   "injectors": {
     "defaultRequire": 1
   },
-  "mixins": [],
+  "mixins": ["NetworkManagerMixin", "PlayerHurtMixin"],
   "client": [
     "ScreenPagedAccessor",
     "ScreenPagedIconMixin",
@@ -21,7 +21,14 @@
     "DataLoaderMixin",
     "HalpLibeConfigMixin",
     "RichPresenceMixin",
-    "ScreenSelectWorldMixin"
+    "ScreenSelectWorldMixin",
+    "VoiceClientMixin",
+    "VoiceHudMixin",
+    "VoiceDuckMixin",
+    "VoiceOptionsMixin",
+    "OptionsCategoryAccessor",
+    "GameSoundRefMixin",
+    "GameStreamRefMixin"
   ],
   "server": [
     "server.MinecraftServerMixin",
@@ -30,6 +37,7 @@
     "server.PlayerServerMixin",
     "server.ServerGuiMixin",
     "server.NoSoundMixin", "server.ModSoundsMixin",
-    "server.ChunkResetSaveMixin"
+    "server.ChunkResetSaveMixin",
+    "server.VoiceTickMixin"
   ]
 }

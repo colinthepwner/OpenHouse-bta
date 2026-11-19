@@ -85,6 +85,7 @@ public final class Joiner {
     public volatile ModState modState = ModState.IDLE;
     public volatile List<ModShare.Mod> modList;
     public volatile String hostVersion;
+    public volatile Object hostProto;
     public volatile String modError = "";
     public volatile long modBytesDone, modBytesTotal;
     private final java.util.Map<String, Long> modProgress = new java.util.concurrent.ConcurrentHashMap<>();
@@ -250,6 +251,7 @@ public final class Joiner {
                     if (!rest.equals("none")) {
                         java.util.Map<String, Object> root = Json.obj(Json.parse(rest));
                         hv = root == null ? null : Json.str(root.get("openhouse"));
+                        hostProto = root == null ? null : root.get("ohp");
                     }
                     if (hv == null) for (ModShare.Mod m : modList) if ("openhouse".equals(m.id)) hv = m.version;
                     hostVersion = hv;

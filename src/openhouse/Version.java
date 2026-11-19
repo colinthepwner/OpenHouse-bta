@@ -3,7 +3,7 @@ package openhouse;
 public final class Version {
     private Version() { }
 
-    public static final String VERSION = "1.1.15";
+    public static final String VERSION = "1.1.16";
 
     public static String base(String v) {
         if (v == null) return null;
@@ -16,6 +16,29 @@ public final class Version {
     public static boolean same(String a, String b) {
         String x = base(a), y = base(b);
         return x != null && x.equals(y);
+    }
+
+    public static final int PROTOCOL = 1;
+
+    static int proto_of(String v) {
+        if (base(v) == null) return 0;
+        return compare(v, "1.1.8") >= 0 && compare(v, "1.1.15") <= 0 ? 1 : 0;
+    }
+
+    public static int proto(String v, Object p) {
+        if (p instanceof Number) return ((Number) p).intValue();
+        if (p instanceof String) try { return Integer.parseInt(((String) p).trim()); } catch (NumberFormatException ignored) { }
+        return proto_of(v);
+    }
+
+    public static boolean compatible(String v, Object p) {
+        if (same(v, VERSION)) return true;
+        int q = proto(v, p);
+        return q > 0 && q == PROTOCOL;
+    }
+
+    public static String speak_as(String v, Object p) {
+        return p == null && v != null && compatible(v, null) ? base(v) : VERSION;
     }
 
     public static int compare(String a, String b) {

@@ -73,6 +73,7 @@ public final class HostMain {
             if (paths != null) for (Map.Entry<String, Object> e : paths.entrySet()) shareFiles.put(e.getKey(), new java.io.File(String.valueOf(e.getValue())));
 
             root.put("openhouse", openhouse.Version.VERSION);
+            root.put("ohp", openhouse.Version.PROTOCOL);
             shareJson = Json.write(root);
             log("sharing " + shareFiles.size() + " mod files with joiners");
         } catch (Exception e) {
@@ -170,6 +171,13 @@ public final class HostMain {
 
     static final Map<String, Long> MISMATCH_SAID = new java.util.concurrent.ConcurrentHashMap<>();
 
+    static String share_as(String ver) {
+        Map<String, Object> root = Json.obj(Json.parse(shareJson));
+        if (root == null) return shareJson;
+        root.put("openhouse", ver);
+        return Json.write(root);
+    }
+
     static void mismatch(String remote, String theirs) {
         long now = System.currentTimeMillis();
         Long last = MISMATCH_SAID.put(remote == null ? "" : remote, now);
@@ -203,7 +211,7 @@ public final class HostMain {
             if (cid == null || sdp == null) return;
             Peer old = peers.remove(cid);
             if (old != null) old.close();
-            Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))), Json.str(payload.get("oh")));
+            Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))), Json.str(payload.get("oh")), payload.get("ohp"));
             p.web = !src.startsWith(JOINER_PREFIX);
             peers.put(cid, p);
             p.offer(Json.str(sdp.get("sdp")));
@@ -238,6 +246,7 @@ public final class HostMain {
         final String remote, cid;
         final boolean mods;
         final String theirVersion;
+        final Object their_proto;
 
         volatile boolean web;
         final RTCPeerConnection pc;
@@ -251,11 +260,12 @@ public final class HostMain {
         final BlockingQueue<byte[]> toServer = new LinkedBlockingQueue<>();
         volatile boolean closed;
 
-        Peer(String remote, String cid, boolean mods, String theirVersion) {
+        Peer(String remote, String cid, boolean mods, String theirVersion, Object their_proto) {
             this.remote = remote;
             this.cid = cid;
             this.mods = mods;
             this.theirVersion = theirVersion;
+            this.their_proto = their_proto;
             RTCConfiguration cfg = new RTCConfiguration();
 
             RTCIceServer stun = new RTCIceServer();
@@ -343,7 +353,7 @@ public final class HostMain {
             debug(cid + " channel open" + (piped ? " (already piped)" : "") + (closed ? " (already closed)" : ""));
             if (piped || closed) return;
             piped = true;
-            Runnable job = mods ? this::serveMods : openhouse.Version.same(theirVersion, openhouse.Version.VERSION) ? this::pipe : this::refuse;
+            Runnable job = mods ? this::serveMods : openhouse.Version.compatible(theirVersion, their_proto) ? this::pipe : this::refuse;
             Thread t = new Thread(job, mods ? "openhouse mods" : "openhouse player");
             t.setDaemon(true);
             t.start();
@@ -358,10 +368,11 @@ public final class HostMain {
                     String cmd = new String(b, java.nio.charset.StandardCharsets.UTF_8).trim();
                     if (cmd.equals("LIST")) {
 
-                        if (!openhouse.Version.same(theirVersion, openhouse.Version.VERSION)) mismatch(remote, theirVersion);
+                        if (!openhouse.Version.compatible(theirVersion, their_proto)) mismatch(remote, theirVersion);
 
-                        String none = "{\"mods\":[],\"openhouse\":\"" + openhouse.Version.VERSION + "\"}";
-                        sendText(shareJson == null || theirVersion == null ? none : shareJson);
+                        String as = openhouse.Version.speak_as(theirVersion, their_proto);
+                        String none = "{\"mods\":[],\"openhouse\":\"" + as + "\",\"ohp\":" + openhouse.Version.PROTOCOL + "}";
+                        sendText(shareJson == null || theirVersion == null ? none : as.equals(openhouse.Version.VERSION) ? shareJson : share_as(as));
                     } else if (cmd.startsWith("GET ")) {
                         String sha = cmd.substring(4).trim();
                         java.io.File f = shareFiles.get(sha);

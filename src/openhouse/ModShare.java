@@ -98,6 +98,62 @@ public final class ModShare {
         return out;
     }
 
+    public static final String ORIGINAL = "openhouse:original";
+    public static final long ORIGINAL_MAX = 200L << 20, ORIGINALS_TOTAL = 400L << 20;
+    static final int STAMP_MAX_FILES = 64;
+
+    public static Mod original(File f) throws IOException {
+        String sha = Rtc.sha256(f);
+        String clean = f.getName().replaceAll("[^A-Za-z0-9._+\\-]", "_");
+        if (clean.length() > 110) clean = clean.substring(clean.length() - 110);
+        Mod m = new Mod(ORIGINAL, sha.substring(0, 12), f.getName(), "*", clean + ".orig", sha, f.length());
+        m.path = f;
+        return m;
+    }
+
+    public static List<Mod> originals(File gameDir, File... dirs) {
+        java.util.LinkedHashMap<String, File> found = new java.util.LinkedHashMap<>();
+        String root;
+        try { root = gameDir.getCanonicalPath() + File.separator; } catch (IOException e) { return new ArrayList<>(); }
+        File[] packs = new File(gameDir, "texturepacks").listFiles(File::isDirectory);
+        if (packs != null) for (File pack : packs) {
+            File[] stamps = pack.listFiles((d, n) -> n.endsWith("-source.txt"));
+            if (stamps == null) continue;
+            for (File st : stamps) {
+                List<String> lines;
+                try { lines = java.nio.file.Files.readAllLines(st.toPath(), StandardCharsets.UTF_8); } catch (IOException | RuntimeException e) { continue; }
+                if (lines.size() < 3 || lines.size() - 2 > STAMP_MAX_FILES) continue;
+                for (String l : lines.subList(2, lines.size())) {
+                    int bar = l.indexOf('|');
+                    if (bar <= 0) continue;
+                    String rel = l.substring(0, bar).trim().replace('\\', '/');
+                    String low = rel.toLowerCase(java.util.Locale.ROOT);
+                    if (low.startsWith("mods/") || low.startsWith("texturepacks/")) continue;
+                    File f = new File(gameDir, rel);
+                    try { if (!f.getCanonicalPath().startsWith(root)) continue; } catch (IOException e) { continue; }
+                    if (f.isFile()) found.put(f.getAbsolutePath(), f);
+                }
+            }
+        }
+        for (File d : dirs) {
+            File[] fs = d == null ? null : d.listFiles(File::isFile);
+            if (fs != null) { Arrays.sort(fs); for (File f : fs) found.put(f.getAbsolutePath(), f); }
+        }
+        List<Mod> out = new ArrayList<>();
+        java.util.Set<String> shas = new java.util.HashSet<>();
+        long total = 0;
+        for (File f : found.values()) {
+            if (f.length() <= 0 || f.length() > ORIGINAL_MAX || total + f.length() > ORIGINALS_TOTAL) continue;
+            try {
+                Mod m = original(f);
+                if (!shas.add(m.sha256)) continue;
+                total += f.length();
+                out.add(m);
+            } catch (IOException ignored) { }
+        }
+        return out;
+    }
+
     public static String toJson(List<Mod> mods) {
         List<Object> list = new ArrayList<>();
         for (Mod m : mods)
