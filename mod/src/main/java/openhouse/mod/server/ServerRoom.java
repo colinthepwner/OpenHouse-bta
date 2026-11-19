@@ -183,6 +183,13 @@ public final class ServerRoom {
 
     public static ServerRoom get() { return INSTANCE; }
 
+    public static String lan_tag() {
+        ServerRoom r = INSTANCE;
+        String c = r.liveCode;
+        if (!r.enabled || c == null || c.isEmpty()) return "";
+        return "[OH]" + c + (r.password == null || r.password.isEmpty() ? "" : ",p") + "[/OH]";
+    }
+
     public synchronized void serverStarted(MinecraftServer server) {
         load();
         if (LAN || OPENHOST) watchParent(server);

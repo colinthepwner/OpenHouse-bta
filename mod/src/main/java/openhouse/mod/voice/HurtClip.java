@@ -26,27 +26,46 @@ public final class HurtClip {
     static final int GATE_SPAN = 150;
     static final float LEVEL = 3200, PEAK = 24000;
     static volatile byte[] clip;
+
+    static volatile byte[][] more = new byte[0][];
     static volatile int version;
 
-    private static File file() { return new File(openhouse.mod.OpenHouseMod.dataDir(), "hurt-sound.clip"); }
+    private static File file(int i) { return new File(openhouse.mod.OpenHouseMod.dataDir(), i == 0 ? "hurt-sound.clip" : "hurt-sound-" + (i + 1) + ".clip"); }
 
     static void load() {
         try {
-            File f = file();
+            File f = file(0);
             if (!f.isFile()) return;
             byte[] d = Files.readAllBytes(f.toPath());
-            if (VoiceWire.clip_frames(d, 0) != null) { clip = d; version++; }
+            if (VoiceWire.clip_frames(d, 0) == null) return;
+            List<byte[]> m = new ArrayList<>();
+            for (int i = 1; i < VoiceWire.HURT_MAX; i++) {
+                File g = file(i);
+                if (!g.isFile()) break;
+                byte[] e = Files.readAllBytes(g.toPath());
+                if (VoiceWire.clip_frames(e, 0) != null) m.add(e);
+            }
+            clip = d; more = m.toArray(new byte[0][]); version++;
         } catch (Throwable ignored) { }
     }
+
+    public static int count() { return clip == null ? 0 : 1 + more.length; }
 
     public static boolean has() { return clip != null; }
     public static int clip_size() { byte[] c = clip; return c == null ? 0 : c.length; }
     public static int theirs_count() { return theirs.size(); }
 
-    private static void set(byte[] c) {
-        clip = c;
+    private static void set(List<byte[]> cs) {
+        clip = cs.get(0);
+        more = cs.subList(1, Math.min(cs.size(), VoiceWire.HURT_MAX)).toArray(new byte[0][]);
         version++;
-        try { File d = openhouse.mod.OpenHouseMod.dataDir(); d.mkdirs(); Files.write(file().toPath(), c); } catch (Throwable ignored) { }
+        try {
+            File d = openhouse.mod.OpenHouseMod.dataDir(); d.mkdirs();
+            for (int i = 0; i < VoiceWire.HURT_MAX; i++) {
+                if (i < cs.size()) Files.write(file(i).toPath(), cs.get(i));
+                else Files.deleteIfExists(file(i).toPath());
+            }
+        } catch (Throwable ignored) { }
     }
 
     private static volatile Rec rec;
@@ -109,7 +128,7 @@ public final class HurtClip {
                 if (l != null) try { l.stop(); l.close(); } catch (Throwable ignored) { }
                 rec = null;
             }
-            try { short[] pcm = trim(frames); if (pcm != null) keep(pcm); } catch (Throwable e) { said = "gui.openhouse.hurt.failed"; }
+            try { short[] pcm = trim(frames); if (pcm != null) keep(java.util.Collections.singletonList(pcm)); } catch (Throwable e) { said = "gui.openhouse.hurt.failed"; }
         }
     }
 
@@ -127,8 +146,8 @@ public final class HurtClip {
         said = null;
         Thread t = new Thread(() -> {
             try {
-                File f = FilePick.audio();
-                if (f != null) from_file(f);
+                List<File> fs = FilePick.audio();
+                if (fs != null && !fs.isEmpty()) from_files(fs);
             } catch (Throwable e) {
                 said = "gui.openhouse.hurt.badfile";
                 openhouse.mod.OpenHouseMod.LOG.info("[voice] hurt sound file: {}", e.toString());
@@ -138,10 +157,24 @@ public final class HurtClip {
         t.start();
     }
 
-    public static void from_file(File f) throws Exception {
-        if (!f.isFile() || f.length() > FILE_MAX_BYTES) { said = "gui.openhouse.hurt.toobig"; return; }
+    public static void from_files(List<File> fs) throws Exception {
+        List<short[]> got = new ArrayList<>();
+        String why = null;
+        for (int i = 0; i < fs.size() && i < VoiceWire.HURT_MAX; i++) {
+            said = null;
+            short[] pcm = from_file(fs.get(i));
+            if (pcm != null) got.add(pcm);
+            if (said != null) why = said;
+        }
+        if (fs.size() > VoiceWire.HURT_MAX && why == null) why = "gui.openhouse.hurt.only3";
+        if (!got.isEmpty()) keep(got);
+        if (why != null) said = why;
+    }
+
+    public static short[] from_file(File f) throws Exception {
+        if (!f.isFile() || f.length() > FILE_MAX_BYTES) { said = "gui.openhouse.hurt.toobig"; return null; }
         short[] all = decode_file(f);
-        if (all == null || all.length < Voice.FRAME) { said = "gui.openhouse.hurt.badfile"; return; }
+        if (all == null || all.length < Voice.FRAME) { said = "gui.openhouse.hurt.badfile"; return null; }
         int n = Math.min(all.length / Voice.FRAME, FILE_MAX_FRAMES);
 
         float[] rr = new float[n];
@@ -150,7 +183,7 @@ public final class HurtClip {
         float th = Math.max(VoiceProc.MIN_RMS * 1.5F, top * 0.08F);
         int a = -1, b = -1;
         for (int i = 0; i < n; i++) if (rr[i] > th) { if (a < 0) a = i; b = i; }
-        if (a < 0) { said = "gui.openhouse.hurt.nothing"; return; }
+        if (a < 0) { said = "gui.openhouse.hurt.nothing"; return null; }
         int span = b - a + 1, clipped = 0, peak = 0;
         double e = 0;
         for (int s = a * Voice.FRAME; s < (b + 1) * Voice.FRAME; s++) { int v = Math.abs(all[s]); if (v >= 32000) clipped++; if (v > peak) peak = v; e += (double) all[s] * all[s]; }
@@ -176,9 +209,9 @@ public final class HurtClip {
         openhouse.mod.OpenHouseMod.LOG.info("[voice] hurt sound file {}: {} s, sound {} s, clipped {}%, crest {}, speech {}%, flux {} still {}% -> {}", f.getName(),
                 String.format("%.1f", all.length / 48000F), String.format("%.2f", span / 50F), String.format("%.2f", clip_frac * 100), String.format("%.1f", crest), Math.round(speech * 100),
                 String.format("%.2f", fx[0]), Math.round(fx[1] * 100), ok ? "kept" : "quiet snip");
-        if (ok) { short[] pcm = trim(frames); if (pcm != null) keep(pcm); return; }
-        keep(snip(frames));
+        if (ok) return trim(frames);
         if (said == null) said = "gui.openhouse.hurt.quiet";
+        return snip(frames);
     }
 
     static final int FB0 = 6, FB1 = 100;
@@ -244,11 +277,31 @@ public final class HurtClip {
         return pcm;
     }
 
+    public static final String[] EXTS = { "wav", "ogg", "oga", "opus", "mp3", "aiff", "aif", "au" };
+
     static short[] decode_file(File f) throws Exception {
         String nm = f.getName().toLowerCase(java.util.Locale.ROOT);
         byte[] data;
         AudioFormat af;
-        if (nm.endsWith(".ogg")) {
+        byte[] head = new byte[64];
+        int hn;
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) { hn = in.read(head); }
+        boolean ogg = hn >= 4 && head[0] == 'O' && head[1] == 'g' && head[2] == 'g' && head[3] == 'S';
+        boolean opus = ogg && new String(head, 0, Math.max(0, hn), java.nio.charset.StandardCharsets.ISO_8859_1).contains("OpusHead");
+        boolean mp3 = !ogg && (nm.endsWith(".mp3") || hn >= 3 && head[0] == 'I' && head[1] == 'D' && head[2] == '3'
+                || hn >= 2 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xE0) == 0xE0);
+        if (opus) {
+            return opus_pcm(f);
+        } else if (mp3) {
+            try (java.io.InputStream in = mp3_body(f); fr.delthas.javamp3.Sound snd = new fr.delthas.javamp3.Sound(in)) {
+                af = snd.getAudioFormat();
+                long max = (long) (af.getSampleRate() * af.getChannels() * 2 * 30);
+                ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                byte[] b = new byte[65536];
+                for (int r; bo.size() < max && (r = snd.read(b)) > 0; ) bo.write(b, 0, r);
+                data = bo.toByteArray();
+            }
+        } else if (ogg) {
             Class<?> c = Class.forName("paulscode.sound.codecs.CodecJOrbis", true, HurtClip.class.getClassLoader());
             Object codec = c.getConstructor().newInstance();
             if (!(Boolean) c.getMethod("initialize", java.net.URL.class).invoke(codec, f.toURI().toURL())) return null;
@@ -273,6 +326,61 @@ public final class HurtClip {
         }
         if (data == null || af == null) return null;
         float[] m = GameRef.mono48k(data, data.length, af.getSampleRate(), af.getChannels(), af.getSampleSizeInBits(), af.isBigEndian());
+        if (m == null) return null;
+        short[] out = new short[m.length];
+        for (int i = 0; i < m.length; i++) out[i] = (short) Math.max(-32768, Math.min(32767, Math.round(m[i])));
+        return out;
+    }
+
+    static java.io.InputStream mp3_body(File f) throws Exception {
+        java.io.InputStream in = new java.io.BufferedInputStream(new java.io.FileInputStream(f), 1 << 16);
+        in.mark(10);
+        byte[] h = new byte[10];
+        int n = in.read(h);
+        if (n == 10 && h[0] == 'I' && h[1] == 'D' && h[2] == '3') {
+            long size = (h[6] & 0x7F) << 21 | (h[7] & 0x7F) << 14 | (h[8] & 0x7F) << 7 | h[9] & 0x7F;
+            if ((h[5] & 0x10) != 0) size += 10;
+            for (long left = size; left > 0; ) { long k = in.skip(left); if (k <= 0) break; left -= k; }
+        } else in.reset();
+        return in;
+    }
+
+    static short[] opus_pcm(File f) throws Exception {
+        byte[] all = Files.readAllBytes(f.toPath());
+        List<byte[]> packets = new ArrayList<>();
+        ByteArrayOutputStream cur = new ByteArrayOutputStream();
+        int o = 0;
+        while (o + 27 <= all.length && packets.size() < 1600) {
+            if (all[o] != 'O' || all[o + 1] != 'g' || all[o + 2] != 'g' || all[o + 3] != 'S') return null;
+            int segs = all[o + 26] & 0xFF, body = o + 27 + segs;
+            if (body > all.length) break;
+            for (int i = 0; i < segs; i++) {
+                int len = all[o + 27 + i] & 0xFF;
+                if (body + len > all.length) return null;
+                cur.write(all, body, len);
+                body += len;
+                if (len < 255) { packets.add(cur.toByteArray()); cur.reset(); }
+            }
+            o = body;
+        }
+        if (packets.size() < 3) return null;
+        byte[] hd = packets.get(0);
+        if (hd.length < 19 || !new String(hd, 0, 8, java.nio.charset.StandardCharsets.ISO_8859_1).equals("OpusHead")) return null;
+        int ch = Math.max(1, Math.min(2, hd[9] & 0xFF)), pre = (hd[10] & 0xFF) | (hd[11] & 0xFF) << 8;
+        OpusDecoder dec = new OpusDecoder(48000, ch);
+        short[] buf = new short[5760 * ch];
+        ByteArrayOutputStream pcm = new ByteArrayOutputStream();
+        long max = 48000L * ch * 2 * 30;
+        for (int i = 2; i < packets.size() && pcm.size() < max; i++) {
+            byte[] pk = packets.get(i);
+            if (pk.length == 0) continue;
+            int n = dec.decode(pk, 0, pk.length, buf, 0, 5760, false);
+            for (int s = 0; s < n * ch; s++) { pcm.write(buf[s]); pcm.write(buf[s] >> 8); }
+        }
+        byte[] data = pcm.toByteArray();
+        int skip = Math.min(data.length, pre * ch * 2);
+        data = java.util.Arrays.copyOfRange(data, skip, data.length);
+        float[] m = GameRef.mono48k(data, data.length, 48000, ch, 16, false);
         if (m == null) return null;
         short[] out = new short[m.length];
         for (int i = 0; i < m.length; i++) out[i] = (short) Math.max(-32768, Math.min(32767, Math.round(m[i])));
@@ -333,9 +441,20 @@ public final class HurtClip {
         return pcm;
     }
 
-    static void keep(short[] pcm) throws Exception {
+    static void keep(List<short[]> pcms) throws Exception {
+        List<byte[]> cs = new ArrayList<>();
+        for (short[] pcm : pcms) { byte[] c = encode(pcm); if (c != null) cs.add(c); }
+        if (cs.isEmpty()) return;
+        set(cs);
+        VoiceCfg.hurt_custom = true;
+        neutral_under();
+        VoiceCfg.save();
+        preview(pcms.get(0));
+    }
+
+    static byte[] encode(short[] pcm) throws Exception {
         int len = pcm.length / Voice.FRAME;
-        if (len <= 0) { said = "gui.openhouse.hurt.nothing"; return; }
+        if (len <= 0) { said = "gui.openhouse.hurt.nothing"; return null; }
         OpusEncoder enc = new OpusEncoder(Voice.RATE, 1, OpusApplication.OPUS_APPLICATION_VOIP);
         enc.setBitrate(48000);
         enc.setSignalType(OpusSignal.OPUS_SIGNAL_VOICE);
@@ -347,13 +466,8 @@ public final class HurtClip {
             out.write(m >> 8); out.write(m & 255); out.write(pkt, 0, m);
         }
         byte[] c = out.toByteArray();
-        if (c.length > VoiceWire.CLIP_MAX) { said = "gui.openhouse.hurt.toolong"; return; }
-        set(c);
-        VoiceCfg.hurt_custom = true;
-        neutral_under();
-        VoiceCfg.save();
-        said = null;
-        preview(pcm);
+        if (c.length > VoiceWire.CLIP_MAX) { said = "gui.openhouse.hurt.toolong"; return null; }
+        return c;
     }
 
     static void preview(short[] pcm) {
@@ -381,13 +495,19 @@ public final class HurtClip {
         } catch (Throwable ignored) { }
     }
 
-    private static short[] mine_pcm;
+    private static List<short[]> mine_pcm = new ArrayList<>();
     private static int mine_ver = -1;
     static synchronized short[] mine_pcm() {
         byte[] c = clip;
         if (c == null) return null;
-        if (mine_ver != version || mine_pcm == null) { mine_pcm = decode(c, 0); mine_ver = version; }
-        return mine_pcm;
+        if (mine_ver != version) {
+            List<short[]> l = new ArrayList<>();
+            short[] p0 = decode(c, 0);
+            if (p0 != null) l.add(p0);
+            for (byte[] m : more) { short[] q = decode(m, 0); if (q != null) l.add(q); }
+            mine_pcm = l; mine_ver = version;
+        }
+        return mine_pcm.isEmpty() ? null : mine_pcm.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(mine_pcm.size()));
     }
 
     public static void preview_mine() {

@@ -37,6 +37,8 @@ public final class LocalServer {
     public static volatile String pendingChat;
     public volatile String code;
 
+    public volatile String steam;
+
     public volatile List<String> leftOut = new ArrayList<>();
     private volatile boolean dying;
     volatile boolean announced;
@@ -312,6 +314,7 @@ public final class LocalServer {
             cmd.add(new File(new File(System.getProperty("java.home"), "bin"), "java").getAbsolutePath());
             cmd.add("-Xmx" + serverHeapMb() + "M");
             OpenHost.no_b64(cmd);
+            OpenHost.server_jvm(cmd, OpenHouseMod.dataDir());
 
             cmd.add("-Djava.awt.headless=true");
             cmd.add("-Dfabric.modsFolder=" + modsDir.getAbsolutePath());
@@ -441,6 +444,14 @@ public final class LocalServer {
             String c = Rtc.normalizeCode(line.substring(i + ServerRoom.ROOM_MARKER.length()).trim());
             if (c != null) code = c;
             else OpenHouseMod.LOG.warn("not a room code in the server's output: {}", line);
+        } else if ((i = line.indexOf("Steam tunnel ready: ")) >= 0) {
+            int is = line.indexOf(" is ", i), sp = is < 0 ? -1 : line.indexOf(' ', is + 4);
+            String a = is < 0 ? null : (sp < 0 ? line.substring(is + 4) : line.substring(is + 4, sp)).trim();
+            if (a != null && a.matches("[A-Za-z0-9.:_\\-]{4,120}")) {
+                steam = a;
+                pendingChat = net.minecraft.core.lang.I18n.getInstance().translateKeyAndFormat("gui.openhouse.lan.steam", a);
+                OpenHouseMod.LOG.info("Open to Friends: e4BTA's steam tunnel is up too ({})", a);
+            }
         } else if ((i = line.indexOf("Preparing spawn area: ")) >= 0 && state == State.STARTING) {
             detail = "Preparing the world... " + line.substring(i + "Preparing spawn area: ".length()).trim();
         } else if (state == State.STARTING && !detail.startsWith("Leaving out") && (i = line.indexOf("Loading ")) >= 0 && line.endsWith(" mods:")) {
@@ -533,7 +544,10 @@ public final class LocalServer {
 
     private void writeSettings(File dir) throws IOException {
         Difficulty d = GameSettings.DIFFICULTY.value;
-        int render = 8;
+
+        int render = 12;
+        try { Integer r = GameSettings.RENDER_DISTANCE.value; if (r != null) render = r; } catch (Throwable ignored) { }
+        render = Math.max(3, Math.min(32, render));
         try (Writer w = new OutputStreamWriter(new FileOutputStream(new File(dir, "server.properties")), StandardCharsets.UTF_8)) {
             w.write("# Written by OpenHouse for \"Open to Friends\" - rewritten each time a world is opened.\n");
             w.write("server-ip=\n");

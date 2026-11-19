@@ -4,42 +4,82 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 final class FilePick {
     private FilePick() { }
 
-    static File audio() {
+    static final String TITLE = "Pick up to 3 hurt sounds";
+
+    static List<File> audio() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String[] ex = HurtClip.EXTS;
         try {
-            if (os.contains("mac")) return run("osascript", "-e", "POSIX path of (choose file with prompt \"Pick a hurt sound (.wav or .ogg)\" of type {\"wav\", \"ogg\", \"aiff\", \"aif\", \"au\"})");
+            if (os.contains("mac")) {
+                StringBuilder types = new StringBuilder();
+                for (String e : ex) types.append(types.length() == 0 ? "" : ", ").append('"').append(e).append('"');
+
+                return run("osascript", "-e", "set fs to (choose file with prompt \"" + TITLE + "\" of type {" + types + "} with multiple selections allowed)",
+                        "-e", "set out to \"\"", "-e", "repeat with f in fs", "-e", "set out to out & POSIX path of f & linefeed", "-e", "end repeat", "-e", "return out");
+            }
             if (!os.contains("win")) {
-                File f = run("zenity", "--file-selection", "--title=Pick a hurt sound", "--file-filter=Sounds | *.wav *.ogg *.aiff *.aif *.au");
+                StringBuilder glob = new StringBuilder();
+                for (String e : ex) glob.append(glob.length() == 0 ? "" : " ").append("*.").append(e);
+                List<File> f = run("zenity", "--file-selection", "--multiple", "--separator=\n", "--title=" + TITLE, "--file-filter=Sounds | " + glob);
                 if (f != null || tried) return f;
-                f = run("kdialog", "--getopenfilename", System.getProperty("user.home"), "*.wav *.ogg *.aiff *.aif *.au");
+                f = run("kdialog", "--getopenfilename", "--multiple", "--separate-output", System.getProperty("user.home"), glob.toString());
                 if (f != null || tried) return f;
             }
         } catch (Throwable ignored) { }
-        return awt();
+
+        if (os.contains("win") && java.awt.GraphicsEnvironment.isHeadless()) return windows();
+        List<File> f = awt();
+        if (f == null && os.contains("win") && !tried_awt) return windows();
+        return f;
+    }
+
+    private static boolean tried_awt;
+
+    private static List<File> windows() {
+        StringBuilder flt = new StringBuilder();
+        for (String e : HurtClip.EXTS) flt.append(flt.length() == 0 ? "" : ";").append("*.").append(e);
+        String ps = "Add-Type -AssemblyName System.Windows.Forms;"
+                + "$o=New-Object System.Windows.Forms.Form -Property @{TopMost=$true;ShowInTaskbar=$false};"
+                + "$d=New-Object System.Windows.Forms.OpenFileDialog;"
+                + "$d.Title='" + TITLE + "';$d.Multiselect=$true;$d.Filter='Sounds|" + flt + "';"
+                + "if($d.ShowDialog($o) -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8;$d.FileNames}";
+        return run("powershell", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps);
     }
 
     private static boolean tried;
 
-    private static File run(String... cmd) {
+    private static List<File> run(String... cmd) {
         tried = false;
         try {
             Process p = new ProcessBuilder(cmd).redirectErrorStream(false).start();
             tried = true;
-            String line;
-            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) { line = r.readLine(); }
+            List<File> out = new ArrayList<>();
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                for (String line; (line = r.readLine()) != null; ) {
+                    File f = new File(line.trim());
+                    if (!line.trim().isEmpty() && f.isFile()) out.add(f);
+                }
+            }
             p.waitFor();
-            if (line == null || line.trim().isEmpty()) return null;
-            File f = new File(line.trim());
-            return f.isFile() ? f : null;
+            return out.isEmpty() ? null : out;
         } catch (Throwable e) { return null; }
     }
 
-    private static File awt() {
+    private static boolean ok(String n) {
+        String l = n.toLowerCase(Locale.ROOT);
+        for (String e : HurtClip.EXTS) if (l.endsWith("." + e)) return true;
+        return false;
+    }
+
+    private static List<File> awt() {
+        tried_awt = false;
         if (java.awt.GraphicsEnvironment.isHeadless()) return null;
         java.awt.Frame top = null;
         try {
@@ -48,14 +88,17 @@ final class FilePick {
             top.setAlwaysOnTop(true);
             top.setLocationRelativeTo(null);
             top.setVisible(true);
-            java.awt.FileDialog d = new java.awt.FileDialog(top, "Pick a hurt sound (.wav or .ogg)", java.awt.FileDialog.LOAD);
-            d.setFilenameFilter((dir, n) -> { String l = n.toLowerCase(Locale.ROOT); return l.endsWith(".wav") || l.endsWith(".ogg") || l.endsWith(".aiff") || l.endsWith(".aif") || l.endsWith(".au"); });
-            d.setFile("*.wav;*.ogg;*.aiff;*.aif;*.au");
+            java.awt.FileDialog d = new java.awt.FileDialog(top, TITLE, java.awt.FileDialog.LOAD);
+            d.setMultipleMode(true);
+            d.setFilenameFilter((dir, n) -> ok(n));
+            StringBuilder w = new StringBuilder();
+            for (String e : HurtClip.EXTS) w.append(w.length() == 0 ? "" : ";").append("*.").append(e);
+            d.setFile(w.toString());
+            tried_awt = true;
             d.setVisible(true);
-            String f = d.getFile(), dir = d.getDirectory();
-            if (f == null || dir == null) return null;
-            File r = new File(dir, f);
-            return r.isFile() ? r : null;
+            List<File> out = new ArrayList<>();
+            for (File f : d.getFiles()) if (f.isFile()) out.add(f);
+            return out.isEmpty() ? null : out;
         } catch (Throwable e) {
             return null;
         } finally {

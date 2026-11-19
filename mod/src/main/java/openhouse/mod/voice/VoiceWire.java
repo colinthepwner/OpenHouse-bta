@@ -9,7 +9,8 @@ public final class VoiceWire {
 
     public static final String CHANNEL = "openhouse:voice";
     public static final int PROTO = 1;
-    public static final byte HELLO = 0, UP = 1, DOWN = 2, STATE = 3, HURT_SET = 4, HURT_CLIP = 5, HURT_PLAY = 6;
+    public static final byte HELLO = 0, UP = 1, DOWN = 2, STATE = 3, HURT_SET = 4, HURT_CLIP = 5, HURT_PLAY = 6, HURT_ADD = 7;
+    public static final int HURT_MAX = 3;
     public static final int CLIP_MAX = 12000;
     public static final int CLIP_FRAMES = 60;
 

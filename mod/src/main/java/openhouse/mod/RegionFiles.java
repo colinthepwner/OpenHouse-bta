@@ -18,6 +18,8 @@ public final class RegionFiles {
         }
     }
 
+    public static void wait_saves() { waitForChunkSaves(); }
+
     private static void waitForChunkSaves() {
         try {
             Field q = ChunkLoaderRegionAsync.class.getDeclaredField("chunksToSave");

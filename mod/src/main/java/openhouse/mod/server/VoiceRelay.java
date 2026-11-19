@@ -52,6 +52,7 @@ public final class VoiceRelay {
         MinecraftServer srv = MinecraftServer.getInstance();
         if (srv == null || srv.playerList == null) return;
         if (d[0] == VoiceWire.HURT_SET) { hurt_set(srv, from, d); return; }
+        if (d[0] == VoiceWire.HURT_ADD) { hurt_add(srv, from, d); return; }
         if (d[0] == VoiceWire.HELLO) {
 
             if (d.length > 1 && d[1] == 0) hello.remove(from); else hello.add(from);
@@ -221,9 +222,10 @@ public final class VoiceRelay {
         }
     }
 
-    private static final Map<String, byte[]> hurt_clips = new ConcurrentHashMap<>();
-    private static final Map<String, Integer> hurt_hash = new ConcurrentHashMap<>();
-    private static final Map<PacketHandler, Set<String>> hurt_sent = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<String, byte[][]> hurt_clips = new ConcurrentHashMap<>();
+    private static final Map<String, int[]> hurt_hash = new ConcurrentHashMap<>();
+
+    private static final Map<PacketHandler, Map<Integer, Integer>> hurt_sent = Collections.synchronizedMap(new WeakHashMap<>());
 
     private static final Set<PacketHandler> hurt_ok = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
@@ -235,22 +237,48 @@ public final class VoiceRelay {
         String k = key(me.username);
         if (d.length < 2 || d[1] == 0) { hurt_clips.remove(k); hurt_hash.remove(k); return; }
         if (d.length - 1 > VoiceWire.CLIP_MAX || VoiceWire.clip_frames(d, 1) == null) return;
-        byte[] clip = java.util.Arrays.copyOfRange(d, 1, d.length);
-        hurt_clips.put(k, clip);
-        hurt_hash.put(k, java.util.Arrays.hashCode(clip));
+        byte[][] c = new byte[VoiceWire.HURT_MAX][];
+        int[] h = new int[VoiceWire.HURT_MAX];
+        c[0] = java.util.Arrays.copyOfRange(d, 1, d.length);
+        h[0] = java.util.Arrays.hashCode(c[0]);
+        hurt_hash.put(k, h);
+        hurt_clips.put(k, c);
+    }
+
+    private static void hurt_add(MinecraftServer srv, PacketHandler from, byte[] d) {
+        PlayerServer me = find(srv, from);
+        if (me == null || me.username == null || d.length < 3) return;
+        int i = d[1] & 0xFF;
+        String k = key(me.username);
+        byte[][] c = hurt_clips.get(k);
+        int[] h = hurt_hash.get(k);
+        if (c == null || h == null || i < 1 || i >= VoiceWire.HURT_MAX) return;
+        if (d.length - 2 > VoiceWire.CLIP_MAX || VoiceWire.clip_frames(d, 2) == null) return;
+        byte[] clip = java.util.Arrays.copyOfRange(d, 2, d.length);
+        h[i] = java.util.Arrays.hashCode(clip);
+        c[i] = clip;
+        if (LOG) ServerRoom.LOG.info("[voice] hurt sound #{} from {}: {} bytes", i + 1, me.username, clip.length);
     }
 
     static boolean hurt(PlayerServer p, float pitch) {
         if (!on || p.username == null) return false;
         String k = key(p.username);
-        byte[] clip = hurt_clips.get(k);
-        Integer hash = hurt_hash.get(k);
-        if (clip == null || hash == null) return false;
+        byte[][] all = hurt_clips.get(k);
+        int[] hs = hurt_hash.get(k);
+        if (all == null || hs == null) return false;
+
+        int n = 0;
+        int[] have = new int[all.length];
+        for (int i = 0; i < all.length; i++) if (all[i] != null) have[n++] = i;
+        if (n == 0) return false;
+        int pick = have[java.util.concurrent.ThreadLocalRandom.current().nextInt(n)];
+        byte[] clip = all[pick];
+        int hash = hs[pick];
         MinecraftServer srv = MinecraftServer.getInstance();
         if (srv == null) return false;
         int id = p.id;
         byte[] play = { VoiceWire.HURT_PLAY, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id,
-                (byte) (hash >>> 24), (byte) (hash >>> 16), (byte) (hash >>> 8), (byte) (int) hash, (byte) Math.max(25, Math.min(250, Math.round(pitch * 100))) };
+                (byte) (hash >>> 24), (byte) (hash >>> 16), (byte) (hash >>> 8), (byte) hash, (byte) Math.max(25, Math.min(250, Math.round(pitch * 100))) };
         net.minecraft.core.net.packet.Packet vanilla = null;
         double y = p.y - p.heightOffset;
         for (PlayerServer q : players(srv)) {
@@ -260,8 +288,9 @@ public final class VoiceRelay {
             PacketHandler h = q.playerNetServerHandler;
             if (LOG) ServerRoom.LOG.info("[voice] {} hurt: to {} as {}", p.username, q.username, hurt_ok.contains(h) ? "clip" : "plain sound");
             if (hurt_ok.contains(h)) {
-                Set<String> got = hurt_sent.computeIfAbsent(h, x -> ConcurrentHashMap.newKeySet());
-                if (got.add(id + "#" + hash)) {
+                Map<Integer, Integer> got = hurt_sent.computeIfAbsent(h, x -> new ConcurrentHashMap<>());
+                Integer had = got.put(id, hash);
+                if (had == null || had != hash) {
                     byte[] c = new byte[9 + clip.length];
                     System.arraycopy(play, 0, c, 0, 9);
                     c[0] = VoiceWire.HURT_CLIP;

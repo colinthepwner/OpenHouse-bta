@@ -759,7 +759,7 @@ public final class JoinMain {
                 while (!closed && (n = in.read(buf)) > 0) {
                     RTCDataChannel ch = dc;
                     if (ch == null) break;
-                    while (!closed && ch.getBufferedAmount() > MAX_BUFFERED) Thread.sleep(5);
+                    while (!closed && ch.getBufferedAmount() > HostMain.GAME_BUFFERED) Thread.sleep(5);
                     ch.send(new RTCDataChannelBuffer(ByteBuffer.wrap(Arrays.copyOf(buf, n)), true));
                 }
             } catch (Exception e) {

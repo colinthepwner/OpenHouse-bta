@@ -12,14 +12,22 @@ public final class VoiceHud {
 
     public static final int IDLE = 0xFF8C8A96, GOLD = 0xFFFFC94A, RED = 0xFFC8505E, SHADOW = 0xC0101014;
     static final int MAX_LISTED = 3;
+    static final long PULSE_MS = 2400;
+    static final int DEAF_PULSES = 3;
+
+    private static Object shown_world;
+    private static long shown_at;
 
     public static void draw(Gui g, Minecraft mc, int w, int h) {
-        if (!Voice.active()) return;
+        if (!Voice.active() || !someone_here(mc)) return;
         FontRenderer font = mc.font;
         I18n t = I18n.getInstance();
         int x = 5, y = h - 5 - 11;
         boolean muted = VoiceCfg.muted;
         String prob = muted ? null : Voice.problem();
+
+        if (mc.currentWorld != shown_world) { shown_world = mc.currentWorld; shown_at = System.currentTimeMillis(); }
+        if (prob != null && prob.equals(t.translateKey("gui.openhouse.voice.hud.deaf")) && System.currentTimeMillis() - shown_at > DEAF_PULSES * PULSE_MS) prob = null;
         boolean off = muted || prob != null;
         int c = off ? pulse(RED) : Voice.talking() ? GOLD : IDLE;
         mic(g, x + 1, y + 1, SHADOW, off);
@@ -45,8 +53,16 @@ public final class VoiceHud {
         }
     }
 
+    static boolean someone_here(Minecraft mc) {
+        try {
+            if (mc.currentWorld == null) return false;
+            for (Player p : mc.currentWorld.players) if (p != mc.thePlayer) return true;
+        } catch (RuntimeException ignored) { }
+        return false;
+    }
+
     static int pulse(int argb) {
-        float k = 0.84F + 0.16F * (float) Math.sin(System.currentTimeMillis() * (2 * Math.PI / 2400.0));
+        float k = 0.84F + 0.16F * (float) Math.sin(System.currentTimeMillis() * (2 * Math.PI / PULSE_MS));
         int r = Math.min(255, (int) ((argb >> 16 & 255) * k * 1.12F)), g = Math.min(255, (int) ((argb >> 8 & 255) * k * 1.12F)), b = Math.min(255, (int) ((argb & 255) * k * 1.12F));
         return argb & 0xFF000000 | r << 16 | g << 8 | b;
     }

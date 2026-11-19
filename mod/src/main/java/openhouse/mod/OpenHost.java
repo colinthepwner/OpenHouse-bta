@@ -95,6 +95,7 @@ public final class OpenHost {
                 say("Server memory: " + mem.replace("G", " GB").replace("M", " MB") + " (" + MEMORY_KEY + " in server.properties)");
             }
             OpenHost.no_b64(cmd);
+            server_jvm(cmd, data);
             cmd.addAll(modOptions(self, mods, data));
             cmd.add("-Dopenhouse.openhost=" + Version.VERSION);
             if (!ui.equals("console")) cmd.add("-Dopenhouse.openhost.gui=" + ui);
@@ -436,6 +437,31 @@ public final class OpenHost {
     static final String NO_B64 = "-XX:-UseBASE64Intrinsics";
     static void no_b64(List<String> cmd) {
         if (!cmd.contains(NO_B64)) cmd.add(1, NO_B64);
+    }
+
+    static final String[] SERVER_GC = {
+            "-XX:+IgnoreUnrecognizedVMOptions", "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200",
+            "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC", "-XX:G1NewSizePercent=30", "-XX:G1MaxNewSizePercent=40",
+            "-XX:G1HeapRegionSize=8M", "-XX:G1ReservePercent=20", "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
+            "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90", "-XX:G1RSetUpdatingPauseTimePercent=5",
+            "-XX:SurvivorRatio=32", "-XX:+PerfDisableSharedMem", "-XX:MaxTenuringThreshold=1" };
+
+    static void server_jvm(List<String> cmd, File data) {
+        boolean own_gc = false;
+        for (String a : cmd) if (a.startsWith("-XX:+Use") && a.endsWith("GC")) own_gc = true;
+        List<String> add = new ArrayList<>();
+        if (!own_gc) java.util.Collections.addAll(add, SERVER_GC);
+        try {
+            if (Runtime.version().feature() >= 19 && data != null) {
+                data.mkdirs();
+                add.add("-XX:+AutoCreateSharedArchive");
+                add.add("-XX:SharedArchiveFile=" + new File(data, "server-classes.jsa").getAbsolutePath());
+                add.add("-Xlog:cds*=off");
+            }
+        } catch (Throwable ignored) { }
+
+        add.removeIf(cmd::contains);
+        cmd.addAll(1, add);
     }
 
     static List<String> jvmOptions() {
