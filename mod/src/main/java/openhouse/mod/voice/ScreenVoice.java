@@ -38,9 +38,11 @@ public final class ScreenVoice extends Screen {
         I18n t = I18n.getInstance();
         on.displayString = t.translateKey(VoiceCfg.on ? "gui.openhouse.voice.on" : "gui.openhouse.voice.off");
         mute.displayString = t.translateKey(VoiceCfg.muted ? "gui.openhouse.voice.mic.muted" : "gui.openhouse.voice.mic.on");
-        mic.displayString = VoiceCfg.mic == null || VoiceCfg.mic.isEmpty()
-                ? t.translateKeyAndFormat("gui.openhouse.voice.device.auto", Mics.label(MicAuto.pick, 14))
-                : t.translateKeyAndFormat("gui.openhouse.voice.device", Mics.label(VoiceCfg.mic, 22));
+
+        String m = VoiceCfg.mic == null ? "" : VoiceCfg.mic;
+        mic.displayString = m.isEmpty()
+                ? t.translateKeyAndFormat("gui.openhouse.voice.device.auto", MicAuto.pick.isEmpty() ? Mics.default_label(10) : Mics.label(MicAuto.pick, 14))
+                : t.translateKeyAndFormat("gui.openhouse.voice.device", m.equals(VoiceCfg.DEFAULT) ? Mics.default_label(14) : Mics.label(m, 22));
         clean.enabled = !Voice.denoise_broken();
         clean.displayString = t.translateKey(Voice.denoise_broken() ? "gui.openhouse.voice.clean.none"
                 : VoiceCfg.denoise ? "gui.openhouse.voice.clean.on" : "gui.openhouse.voice.clean.off");
