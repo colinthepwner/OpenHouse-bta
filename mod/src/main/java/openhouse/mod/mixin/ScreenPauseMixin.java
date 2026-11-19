@@ -59,6 +59,7 @@ public abstract class ScreenPauseMixin {
         for (ButtonElement b : s.buttons) {
             if (b.id == CODE) b.displayString = codeLabel(s.mc, b.width);
             if (b.id == JOINED) b.displayString = joinedLabel(s.mc, b.width);
+            if (b.id == OPEN && b.enabled) b.displayString = openLabel(s.mc, b.width);
         }
     }
 
@@ -132,6 +133,13 @@ public abstract class ScreenPauseMixin {
     private static void relabel(Screen s, ButtonElement b) {
         if (b.id == CODE) b.displayString = codeLabel(s.mc, b.width);
         if (b.id == JOINED) b.displayString = joinedLabel(s.mc, b.width);
+        if (b.id == OPEN && b.enabled) b.displayString = openLabel(s.mc, b.width);
+    }
+
+    private static String openLabel(Minecraft mc, int width) {
+        I18n t = I18n.getInstance();
+        String full = t.translateKey("gui.openhouse.lan.button.open");
+        return mc == null || mc.font == null || mc.font.stringWidth(full) <= width - 8 ? full : t.translateKey("gui.openhouse.lan.button.open.short");
     }
 
     private static String codeLabel(Minecraft mc, int width) {

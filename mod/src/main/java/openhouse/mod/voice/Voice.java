@@ -70,6 +70,7 @@ public final class Voice {
         if (active && server_muted) return net.minecraft.core.lang.I18n.getInstance().translateKey("gui.openhouse.voice.hud.servermuted");
         VoiceMic m = mic;
         if (m != null && m.problem != null) return m.problem;
+        if (m != null && m.deaf() && !VoiceCfg.muted) return net.minecraft.core.lang.I18n.getInstance().translateKey("gui.openhouse.voice.hud.deaf");
         return active ? out.problem : null;
     }
 
@@ -78,7 +79,9 @@ public final class Voice {
         PacketHandlerClient l = mc.currentWorld != null && mc.isMultiplayerWorld() && me instanceof PlayerLocalMultiplayer
                 ? ((PlayerLocalMultiplayer) me).sendQueue : null;
         link = l;
-        if (l != hello_link) { hello_link = l; server_ok = false; server_muted = false; server_code = ""; hello_at = 0; hello_tries = 0; hurt_sent = false; HurtClip.forget_all(); }
+        if (l != hello_link) { hello_link = l; server_ok = false; server_muted = false; server_code = ""; hello_at = 0; hello_tries = 0; hurt_sent = false; HurtClip.forget_all();
+
+            if (VoiceCfg.hurt_custom && net.minecraft.client.option.GameSettings.PLAYER_HURT_SOUND.value != net.minecraft.core.entity.player.Player.PlayerConfig.HurtSound.NEUTRAL) HurtClip.neutral_under(); }
         long now = System.currentTimeMillis();
 
         if (l != null && !server_ok && hello_tries < 6 && now - hello_at > 2500) {

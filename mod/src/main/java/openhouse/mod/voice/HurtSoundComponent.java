@@ -48,7 +48,8 @@ public class HurtSoundComponent extends ToggleableOptionComponent<String> {
         int i = option.getValueIndex(), n = count();
         boolean custom = i >= n;
         if (custom != VoiceCfg.hurt_custom) { VoiceCfg.hurt_custom = custom; VoiceCfg.save(); }
-        if (!custom && GameSettings.PLAYER_HURT_SOUND.getValueIndex() != i) {
+        if (custom) HurtClip.neutral_under();
+        else if (GameSettings.PLAYER_HURT_SOUND.getValueIndex() != i) {
             GameSettings.PLAYER_HURT_SOUND.setValueWithIndex(i);
             GameSettings.PLAYER_HURT_SOUND.onUpdate();
         }

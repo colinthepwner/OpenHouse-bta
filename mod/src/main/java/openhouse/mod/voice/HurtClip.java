@@ -350,6 +350,7 @@ public final class HurtClip {
         if (c.length > VoiceWire.CLIP_MAX) { said = "gui.openhouse.hurt.toolong"; return; }
         set(c);
         VoiceCfg.hurt_custom = true;
+        neutral_under();
         VoiceCfg.save();
         said = null;
         preview(pcm);
@@ -371,6 +372,13 @@ public final class HurtClip {
         }, "OpenHouse hurt preview");
         t.setDaemon(true);
         t.start();
+    }
+
+    static void neutral_under() {
+        try {
+            net.minecraft.client.option.GameSettings.PLAYER_HURT_SOUND.set(net.minecraft.core.entity.player.Player.PlayerConfig.HurtSound.NEUTRAL);
+            net.minecraft.client.option.GameSettings.PLAYER_HURT_SOUND.onUpdate();
+        } catch (Throwable ignored) { }
     }
 
     private static short[] mine_pcm;

@@ -35,8 +35,23 @@ final class VoiceMic implements Runnable {
     private final float[] fe = new float[960];
 
     private static final boolean NO_FILTER = Boolean.getBoolean("openhouse.voice.nofilter");
+
+    static volatile VoiceMic live;
+    private final float[] env_ring = new float[64];
+    private int env_at;
+    float[] recent(int n) {
+        synchronized (env_ring) {
+            float[] r = new float[n];
+            for (int i = 0; i < n; i++) r[i] = env_ring[Math.floorMod(env_at - n + i, env_ring.length)];
+            return r;
+        }
+    }
+
     private void run_frame(VoiceProc p, short[] f, VoiceProc.Out out) throws Exception {
         long at = VoiceEcho.clock();
+        double en = 0;
+        for (short v : f) en += (double) v * v;
+        synchronized (env_ring) { env_ring[env_at] = (float) Math.log10(en / f.length + 1); env_at = (env_at + 1) % env_ring.length; }
         auto_feed(f, p.talking());
         if (FAKE_ECHO != null) {
             String[] a = FAKE_ECHO.split(",");
@@ -61,16 +76,17 @@ final class VoiceMic implements Runnable {
     private void auto_feed(short[] f, boolean talking) {
         MicStats w = MicAuto.window;
         if (w != null) w.add(f);
-        if (!auto) return;
         sec.add(f);
         long now = System.currentTimeMillis();
         if (talking) last_voice = now;
         if (sec.frames >= 50) {
             if (sec.dead()) { if (dead_since == 0) dead_since = now; } else dead_since = 0;
             sec = new MicStats();
-            MicAuto.check(name, now - last_voice, dead_since == 0 ? 0 : now - dead_since, talking);
+            if (auto) MicAuto.check(name, now - last_voice, dead_since == 0 ? 0 : now - dead_since, talking);
         }
     }
+
+    boolean deaf() { long d = dead_since; return d != 0 && System.currentTimeMillis() - d >= MicAuto.DEAD_MS; }
     int echo_delay() { VoiceEcho e = echo; return e == null ? -1 : e.delay_ms(); }
     float echo_erle() { VoiceEcho e = echo; return e == null ? 0 : e.erle; }
     String gate() { VoiceProc p = proc; return p == null ? "-" : p.gate(); }
@@ -115,6 +131,7 @@ final class VoiceMic implements Runnable {
                 TargetDataLine l = Mics.open(name, raw.length * LINE_FRAMES);
                 if (l == null) { problem = "No microphone"; nap(RETRY_MS); continue; }
                 line = l;
+                live = this;
                 if (!run) { l.close(); break; }
                 problem = null;
                 l.start();
@@ -138,6 +155,7 @@ final class VoiceMic implements Runnable {
             problem = "Microphone failed";
             openhouse.mod.OpenHouseMod.LOG.warn("[voice] mic thread stopped: {}", e.toString());
         } finally {
+            if (live == this) live = null;
             p.end(out);
             TargetDataLine l = line;
             if (l != null) try { l.close(); } catch (Throwable ignored) { }

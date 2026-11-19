@@ -12,6 +12,7 @@ final class MicAuto {
     static final long QUIET_MS = 20_000;
     static final long DEAD_MS = 2_000;
     static final long TALK_MS = 90_000;
+    static final long MENU_MS = SCOUT_MS + 1500;
     static final Pattern SKIP = Pattern.compile("(?i)stereo mix|what u hear|wave out|loopback|hands[- ]free|ag audio");
 
     static volatile String pick = "";
@@ -30,7 +31,8 @@ final class MicAuto {
         long now = System.currentTimeMillis(), since = now - last_scout;
         boolean dead = dead_ms >= DEAD_MS;
         if (scouting) return;
-        boolean go = dead ? since >= 8_000 : quiet_ms >= QUIET_MS ? since >= 30_000 : talking && since >= TALK_MS;
+        boolean go = Voice.testing ? since >= MENU_MS
+                : dead ? since >= 8_000 : quiet_ms >= QUIET_MS ? since >= 30_000 : talking && since >= TALK_MS;
         if (!go) return;
         last_scout = now;
         scouting = true;
@@ -41,6 +43,7 @@ final class MicAuto {
     }
 
     private static void scout(String cur_name, MicStats cur, boolean cur_dead) {
+        boolean menu = Voice.testing;
         List<String> names = new ArrayList<>();
         for (String n : Mics.names()) if (!n.equals(cur_name) && !skip(n)) names.add(n);
         if (!cur_name.isEmpty()) names.add("");
@@ -71,13 +74,22 @@ final class MicAuto {
         if (best >= 0 && bs >= 0.08F && bs > cs * 1.4F) {
 
             String b = names.get(best);
-            if (cur_dead || cs < 0.02F) to = b;
+            if (cur_dead || cs < 0.02F || menu) to = b;
             else if (b.equals(pending) && ++pending_n >= 2) to = b;
             else { pending = b; pending_n = 1; }
         } else { pending = null; pending_n = 0; }
-        if (to == null && cur_dead && !cur_name.isEmpty()) to = "";
+
+        if (to == null && cur_dead) {
+            int live = -1;
+            for (int i = 0; i < st.length; i++) {
+                if (st[i].frames < 20 || st[i].dead() || names.get(i).isEmpty() && cur_name.isEmpty()) continue;
+                if (live < 0 || st[i].score() > st[live].score() || st[i].score() == st[live].score() && st[i].onsets > st[live].onsets) live = i;
+            }
+            if (live >= 0) to = names.get(live);
+            else if (!cur_name.isEmpty()) to = "";
+        }
         if (to == null || to.equals(pick)) return;
-        if (!cur_dead && System.currentTimeMillis() - switched_at < 30_000) return;
+        if (!cur_dead && !menu && System.currentTimeMillis() - switched_at < 30_000) return;
         switched_at = System.currentTimeMillis();
         pending = null; pending_n = 0;
         pick = to;
