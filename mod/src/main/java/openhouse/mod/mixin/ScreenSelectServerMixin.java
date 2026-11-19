@@ -1,6 +1,9 @@
 package openhouse.mod.mixin;
 
+import openhouse.mod.NearbyRooms;
 import openhouse.mod.RoomCodePage;
+import openhouse.mod.ScreenRoomJoin;
+import net.minecraft.client.gui.server.ServerEntry;
 import net.minecraft.client.gui.server.ScreenSelectServer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -23,5 +26,14 @@ public abstract class ScreenSelectServerMixin {
         s.buttonAddServer.enabled = s.buttonAddServer.visible = false;
         s.buttonRefresh.enabled = s.buttonRefresh.visible = false;
         s.buttonCancel.xPosition = (s.width - 100) / 2;
+    }
+
+    @Inject(method = "joinEntry", at = @At("HEAD"), cancellable = true, require = 0)
+    private void openhouse$join_room(ServerEntry e, CallbackInfo ci) {
+        String code = NearbyRooms.code(e);
+        if (code == null) return;
+        ci.cancel();
+        ScreenSelectServer s = (ScreenSelectServer) (Object) this;
+        s.mc.displayScreen(new ScreenRoomJoin(s, code));
     }
 }

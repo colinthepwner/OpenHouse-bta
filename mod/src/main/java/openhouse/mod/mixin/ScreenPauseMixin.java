@@ -22,6 +22,8 @@ public abstract class ScreenPauseMixin {
     private static final int VOICE = 7704;
 
     private static final int JOINED = 7705;
+
+    private static final int TIMELINE = 1, REPLACE = 7706;
     private static final int ICON = 20;
     private static long copiedUntil;
 
@@ -49,7 +51,27 @@ public abstract class ScreenPauseMixin {
             s.buttons.add(b);
         }
         if (s.mc.currentWorld != null) s.buttons.add(new ButtonElement(VOICE, x - ICON - 2, y, ICON, 20, ""));
+
+        if (openhouse.mod.WorldGuard.visiting() && (!s.mc.isMultiplayerWorld() || LocalServer.hosting())) {
+            for (ButtonElement b : new java.util.ArrayList<>(s.buttons)) {
+                if (b.id != 1) continue;
+                b.width = 98;
+                b.displayString = fitLabel(s.mc, "gui.openhouse.rewind.pause.back", 98);
+                s.buttons.add(new ButtonElement(REPLACE, b.xPosition + 102, b.yPosition, 98, 20, fitLabel(s.mc, "gui.openhouse.rewind.pause.replace", 98)));
+            }
+        }
         openhouse$layout();
+    }
+
+    private static ButtonElement buttonById(Screen s, int id) {
+        for (ButtonElement b : s.buttons) if (b.id == id) return b;
+        return null;
+    }
+
+    private static String fitLabel(Minecraft mc, String key, int width) {
+        I18n t = I18n.getInstance();
+        String full = t.translateKey(key);
+        return mc == null || mc.font == null || mc.font.stringWidth(full) <= width - 8 ? full : t.translateKey(key + ".short");
     }
 
     @Inject(method = "render", at = @At("HEAD"))
@@ -66,6 +88,17 @@ public abstract class ScreenPauseMixin {
     @Inject(method = "render", at = @At("TAIL"))
     private void openhouse$icon(int mx, int my, float partialTick, CallbackInfo ci) {
         Screen s = (Screen) (Object) this;
+        openhouse.mod.Icons.red(s, s.fontRenderer, buttonById(s, REPLACE));
+
+        ButtonElement code = buttonById(s, CODE);
+
+        if (code != null && code.visible && openhouse.mod.OpenHouseDiscord.shareCode) {
+            int x0 = code.xPosition, y0 = code.yPosition, x1 = x0 + code.width, y1 = y0 + code.height, c = 0xFF5865F2;
+            s.drawRect(x0, y0, x1, y0 + 1, c); s.drawRect(x0, y1 - 1, x1, y1, c);
+            s.drawRect(x0, y0 + 1, x0 + 1, y1 - 1, c); s.drawRect(x1 - 1, y0 + 1, x1, y1 - 1, c);
+        }
+        if (code != null && code.visible && mx >= code.xPosition && mx < code.xPosition + code.width && my >= code.yPosition && my < code.yPosition + code.height)
+            s.drawStringCenteredShadow(s.fontRenderer, I18n.getInstance().translateKey("gui.openhouse.lan.button.code.tip"), s.width / 2, s.height - 14, 0xA0A0A0);
         for (ButtonElement b : s.buttons) {
             if (b.id == VOICE && b.visible) {
                 boolean off = !openhouse.mod.voice.VoiceCfg.on || openhouse.mod.voice.VoiceCfg.muted;
@@ -173,6 +206,14 @@ public abstract class ScreenPauseMixin {
     @Inject(method = "buttonClicked", at = @At("HEAD"), cancellable = true)
     private void openhouse$clicked(ButtonElement button, CallbackInfo ci) {
         Minecraft mc = ((Screen) (Object) this).mc;
+        if ((button.id == TIMELINE || button.id == REPLACE) && openhouse.mod.WorldGuard.visiting()
+                && (!mc.isMultiplayerWorld() || LocalServer.hosting())) {
+
+            ci.cancel();
+            if (button.id == TIMELINE) openhouse.mod.ScreenRewind.leave(mc, false);
+            else mc.displayScreen(new openhouse.mod.ScreenReplaceConfirm((Screen) (Object) this, () -> openhouse.mod.ScreenRewind.leave(mc, true)));
+            return;
+        }
         if (button.id == VOICE) {
             ci.cancel();
             mc.displayScreen(new openhouse.mod.voice.ScreenVoice((Screen) (Object) this));
@@ -196,10 +237,17 @@ public abstract class ScreenPauseMixin {
         } else if (button.id == COPY) {
             ci.cancel();
             LocalServer ls = LocalServer.current();
-            if (ls != null && ls.code != null) {
-                try { Global.accessor.copyToClipboard(ls.code); } catch (Exception ignored) { }
+
+            boolean shift = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT) || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT);
+            String what = ls == null ? null : shift && ls.steam != null ? ls.steam : ls.code;
+            if (what != null) {
+                try { Global.accessor.copyToClipboard(what); } catch (Exception ignored) { }
                 copiedUntil = System.currentTimeMillis() + 1500;
             }
+        } else if (button.id == CODE && (org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT) || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT))) {
+
+            ci.cancel();
+            openhouse.mod.ScreenRoomText.askPassword((Screen) (Object) this);
         } else if (button.id == CODE) {
 
             ci.cancel();

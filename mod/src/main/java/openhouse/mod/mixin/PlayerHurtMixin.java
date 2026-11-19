@@ -12,7 +12,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = Player.class, remap = false)
 public abstract class PlayerHurtMixin {
     @Inject(method = "playHurtSound", at = @At("HEAD"), cancellable = true, require = 0)
-    private void openhouse$customHurt(CallbackInfo ci) {
+    private void openhouse$customHurt(CallbackInfo ci) { openhouse$play(ci); }
+
+    @Inject(method = "playDeathSound", at = @At("HEAD"), cancellable = true, require = 0)
+    private void openhouse$customDeath(CallbackInfo ci) { openhouse$play(ci); }
+
+    @org.spongepowered.asm.mixin.Unique
+    private void openhouse$play(CallbackInfo ci) {
         Player p = (Player) (Object) this;
         VoiceWire.HurtHook h = VoiceWire.hurt, sp = VoiceWire.local_hurt;
         if (h == null && sp == null || p.world == null || p.world.isClientSide) return;

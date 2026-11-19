@@ -47,7 +47,7 @@ public final class ScreenOpenToFriends extends Screen {
             mc.displayScreen(new ScreenConnecting(mc, "127.0.0.1", server.port));
         } else if (closing && lost == null && (s == LocalServer.State.STOPPED || s == LocalServer.State.FAILED)) {
             handedOver = true;
-            mc.displayScreen(new ScreenMainMenu());
+            mc.displayScreen(ScreenRewind.afterHosting(server));
         }
 
         if ((s == LocalServer.State.FAILED || crashed()) && !closing) {
@@ -62,7 +62,7 @@ public final class ScreenOpenToFriends extends Screen {
         if (button == cancel) {
 
             if (server.state != LocalServer.State.FAILED && server.crash == null) server.stop();
-            mc.displayScreen(new ScreenMainMenu());
+            mc.displayScreen(ScreenRewind.afterHosting(server));
         }
     }
 

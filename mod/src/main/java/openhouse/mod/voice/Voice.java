@@ -100,6 +100,14 @@ public final class Voice {
                 if (c && clip != null) { d = new byte[clip.length + 1]; d[0] = VoiceWire.HURT_SET; System.arraycopy(clip, 0, d, 1, clip.length); }
                 else d = new byte[] { VoiceWire.HURT_SET, 0 };
                 l.addToSendQueue(new PacketCustomPayload(VoiceWire.CHANNEL, d));
+
+                byte[][] more = HurtClip.more;
+                for (int i = 0; c && i < more.length && i + 1 < VoiceWire.HURT_MAX; i++) {
+                    byte[] m = more[i], a = new byte[m.length + 2];
+                    a[0] = VoiceWire.HURT_ADD; a[1] = (byte) (i + 1);
+                    System.arraycopy(m, 0, a, 2, m.length);
+                    l.addToSendQueue(new PacketCustomPayload(VoiceWire.CHANNEL, a));
+                }
             }
         }
         hurts(mc);

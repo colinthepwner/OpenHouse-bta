@@ -41,6 +41,8 @@ public final class HostMain {
 
     static final long MAX_BUFFERED = 4L << 20;
 
+    static final long GAME_BUFFERED = 64L << 10;
+
     static final long OPEN_TIMEOUT_MS = 45000;
 
     static final String JOINER_PREFIX = "bta-join-";
@@ -545,7 +547,7 @@ public final class HostMain {
                     RTCDataChannel ch = dc;
                     if (ch == null) { sending = false; close(); continue; }
                     try {
-                        while (!closed && ch.getBufferedAmount() > MAX_BUFFERED) Thread.sleep(5);
+                        while (!closed && ch.getBufferedAmount() > GAME_BUFFERED) Thread.sleep(5);
                         if (!closed) ch.send(new RTCDataChannelBuffer(ByteBuffer.wrap(Arrays.copyOf(buf, n)), true));
                     } catch (Exception e) {
 

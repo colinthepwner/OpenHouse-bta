@@ -24,9 +24,11 @@ Step by step:
 - Wait while everything loads.
 - You will be given a room code that your friends must enter in the multiplayer menu.
 - You can copy and paste the room code from the ESC menu.
+- Shift-click the room code to give the room a password, right-click it to pick your own code.
 - Closing the world will shut down the room and save your progress.
 
-Make sure everyone trying to connect is using the mod, and things should just work.
+Make sure everyone trying to connect is using the mod, and things should just work.\
+Your friends see as far as your render distance lets you.
 
 You can load additional mods by simply adding mod.jar to your minecraft/mods folder before loading the world.\
 Only the host needs to worry about adding mods; connecting friends automatically download the mods they need.\
@@ -56,6 +58,8 @@ Just place OpenHost.jar in a folder and double-click it; the rest should be self
 # Joining
 - Load the mod or the [instance](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHouse-BTA-Instance.zip).
 - Go to **Multiplayer**, pick **Room Code**, type the code and click **Join**.
+- On the same network? Worlds and servers with OpenHouse show up under **Local Network** too. Just
+  click one.
 - If the host has mods you don't, OH offers to grab them and restart the game with them. Your own
   `mods` folder stays the way it was. Only take mods from people you trust.
 - Tick **Keep the mods in my folder** to play with your own mods too, next to the host's. If you
@@ -77,13 +81,28 @@ Rocket Edition players too.
 - `/mute <player>` and `/unmute <player>` are just for you. Ops can mute someone for everyone with
   `/mute <player> @a`.
 - Gamerule `mobsHearVoice` (off by default) lets monsters hear you talking.
+- The mic in the corner only shows up when someone else is around to hear you.
+- Have e4BTA Voice too? It steps aside wherever OpenHouse voice is running, so nobody hears you twice.
 
 ## Custom hurt sound
 Options > Player > Hurt Sound has a **Custom** setting with a mic button next to it.
 
 - Hold the button to record, or click it and say something.
-- Right-click it to use a sound file (`.wav` or `.ogg`) instead.
-- Only a short sound is kept. Everyone with OpenHouse or Rocket Edition hears it when you get hurt.
+- Right-click it to use sound files instead (`.wav`, `.mp3`, `.ogg` or `.opus`). Pick up to 3 and
+  one of them plays each time.
+- Only a short sound is kept. Everyone with OpenHouse or Rocket Edition hears it when you get hurt,
+  and when you die.
+
+# Rewind
+The rewind button next to the folder in your world list shows your world's saves on a timeline,
+with a picture of each.
+
+- **Play** opens your world like normal.
+- An older save opens as a copy. Your world doesn't change while you play it.
+- In the copy's pause menu, **Return to Timeline** throws the copy away. **Replace World** makes it
+  your world, and asks first.
+- Your world as it was stays on the timeline, so you can go back.
+- Saves are kept as you play: every time you leave a world, and around Open to Friends.
 
 # Passwords and whitelists
 - `/oh password <password>` in your opened world or the server console. Friends type it once when
@@ -111,9 +130,9 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
   that goes with their name.
 - Two people can't play under the same name at once.
-- Your world gets backed up before and after you open it to friends, and once a day when you
-  play it. The backups are in `openhouse/backups`. If something in a world gets broken, OH fixes
-  it the next time you open the world.
+- Your world gets backed up when you leave it, before and after you open it to friends, and once
+  a day. The backups are in `openhouse/backups` and on the rewind timeline. If something in a world
+  gets broken, OH fixes it the next time you open the world.
 - Mods that only work in the game stay out of your world's server by themselves, and friends get
   your mod settings along with your mods.
 - If a mod crashes your open world, OH tells you which one, and keeps it out of the server next
