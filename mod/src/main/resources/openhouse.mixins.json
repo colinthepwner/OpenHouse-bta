@@ -29,7 +29,7 @@
     "server.PlayerListMixin",
     "server.PlayerServerMixin",
     "server.ServerGuiMixin",
-    "server.NoSoundMixin",
+    "server.NoSoundMixin", "server.ModSoundsMixin",
     "server.ChunkResetSaveMixin"
   ]
 }
