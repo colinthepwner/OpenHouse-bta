@@ -29,6 +29,7 @@ public abstract class ScreenSelectWorldMixin {
     @Unique private static final int REWIND = 7707;
     @Unique private ButtonElement openhouse$rewind;
     @Unique private int openhouse$checked_for = -2;
+    @Unique private long openhouse$checked_at;
 
     @Inject(method = "loadSaves", at = @At("HEAD"), require = 0)
     private void openhouse$checkSaveFiles(CallbackInfo ci) {
@@ -62,8 +63,11 @@ public abstract class ScreenSelectWorldMixin {
 
     @Inject(method = "render", at = @At("HEAD"), require = 0)
     private void openhouse$rewind_state(int mx, int my, float pt, CallbackInfo ci) {
-        if (openhouse$rewind == null || openhouse$checked_for == selectedWorld) return;
+
+        long now = System.currentTimeMillis();
+        if (openhouse$rewind == null || openhouse$checked_for == selectedWorld && now - openhouse$checked_at < 1000) return;
         openhouse$checked_for = selectedWorld;
+        openhouse$checked_at = now;
         String dir = openhouse$selected();
 
         openhouse$rewind.enabled = dir != null && !WorldGuard.timeline(WorldGuard.saveDir(dir)).isEmpty();

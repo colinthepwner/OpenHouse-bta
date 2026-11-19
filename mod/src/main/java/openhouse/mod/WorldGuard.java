@@ -235,7 +235,12 @@ public final class WorldGuard {
     }
 
     public static List<File> timeline(File world) {
-        synchronized (LOCK) { return backups(world); }
+        File[] all = backupsRoot(world).listFiles(File::isDirectory);
+        List<File> out = new ArrayList<>();
+        if (all == null) return out;
+        Arrays.sort(all, Comparator.comparing(File::getName).reversed());
+        for (File b : all) if (new File(b, "complete").isFile()) out.add(b);
+        return out;
     }
 
     public static void left(String worldDirName) {

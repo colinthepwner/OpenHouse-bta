@@ -72,15 +72,18 @@ final class VoiceMic implements Runnable {
 
     final boolean auto;
     private long last_voice = System.currentTimeMillis(), dead_since;
+    private boolean heard_once;
     private MicStats sec = new MicStats();
     private void auto_feed(short[] f, boolean talking) {
         MicStats w = MicAuto.window;
         if (w != null) w.add(f);
         sec.add(f);
         long now = System.currentTimeMillis();
-        if (talking) last_voice = now;
+        if (talking) { last_voice = now; heard_once = true; if (auto) MicAuto.heard(name); }
         if (sec.frames >= 50) {
-            if (sec.dead()) { if (dead_since == 0) dead_since = now; } else dead_since = 0;
+
+            boolean dead = sec.dead() && !(auto && MicAuto.proven(name, heard_once ? now - last_voice : Long.MAX_VALUE));
+            if (dead) { if (dead_since == 0) dead_since = now; } else dead_since = 0;
             sec = new MicStats();
             if (auto) MicAuto.check(name, now - last_voice, dead_since == 0 ? 0 : now - dead_since, talking);
         }

@@ -27,6 +27,26 @@ final class MicAuto {
 
     static boolean skip(String name) { return SKIP.matcher(name).find(); }
 
+    static final long PROVEN_MS = 10 * 60_000;
+
+    static void start_on(String saved) {
+        try { if (saved != null && !saved.isEmpty() && Mics.names().contains(saved)) pick = saved; } catch (Throwable ignored) { }
+    }
+
+    static void heard(String name) {
+        String n = name == null ? "" : name;
+        if (n.equals(VoiceCfg.auto_mic)) return;
+        VoiceCfg.auto_mic = n;
+        Thread t = new Thread(VoiceCfg::save, "OpenHouse voice save");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    static boolean proven(String name, long since_voice) {
+        String n = name == null ? "" : name;
+        return since_voice < PROVEN_MS || !n.isEmpty() && n.equals(VoiceCfg.auto_mic);
+    }
+
     static void check(String cur_name, long quiet_ms, long dead_ms, boolean talking) {
         long now = System.currentTimeMillis(), since = now - last_scout;
         boolean dead = dead_ms >= DEAD_MS;

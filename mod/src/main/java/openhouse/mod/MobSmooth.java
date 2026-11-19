@@ -17,7 +17,12 @@ public final class MobSmooth {
     static long stamp;
     static double jit = 10;
 
-    public static void stamp(long ms) { stamp = ms; }
+    static boolean rot;
+
+    public static void stamp(long ms, boolean has_rot) { stamp = ms; rot = has_rot; }
+    public static void stamp(long ms) { stamp(ms, true); }
+    public static boolean take_rot() { boolean r = rot; rot = false; return r; }
+    public static long spawn;
 
     static double tick_lock(long arr) {
         if (Double.isNaN(grid) || Math.abs(arr - grid) > 60000) grid = arr;
@@ -42,9 +47,16 @@ public final class MobSmooth {
     int per = 3;
     final double[] gaps = {0, 0, 0, 1};
     boolean still;
+    double lt;
+
+    double yw, yv, yt = Double.NaN, yconf, ydisp;
+    boolean ystill;
+    double ystep = YSTEP, ylast = Double.NaN;
+    static final double YSTEP = 8 * 360 / 256.0;
+    static final double YEASE = num("ms.yease", 0.5), YLEAD = num("ms.ylead", 1), YB = num("ms.yb", 0.6), YJIT = num("ms.yjit", 12);
 
     public boolean ready() { return !Double.isNaN(st); }
-    public void reset() { st = Double.NaN; clock = Double.NaN; bt = Double.NaN; shown = false; }
+    public void reset() { st = Double.NaN; clock = Double.NaN; bt = Double.NaN; shown = false; yt = Double.NaN; ylast = Double.NaN; ystep = YSTEP; }
 
     public void sample(double x, double y, double z) {
         long arr = stamp != 0 ? stamp : wall.getAsLong();
@@ -89,6 +101,7 @@ public final class MobSmooth {
         if (Math.abs(vy) > cap * 2) vy = Math.signum(vy) * cap * 2;
         conf = conf * 0.75 + 0.25 * (r < 0.04 ? 1 : r < 0.15 ? 0.5 : 0);
         st = t;
+        lt = t;
         still = false;
         blend(now, cx, cy, cz);
     }
@@ -111,13 +124,53 @@ public final class MobSmooth {
     double dy(double now) { return bl(now, at_y(now), (at_y(now) - at_y(now - 10)) / 10, by, bvy); }
     double dz(double now) { return bl(now, at_z(now), (at_z(now) - at_z(now - 10)) / 10, bz, bvz); }
 
+    public void yaw(double meas) {
+        double t = lt;
+        if (!Double.isNaN(ylast)) {
+            double jump = Math.abs(wrap(meas - ylast));
+            if (jump >= 360 / 256.0 * 0.9) ystep = Math.max(360 / 256.0, Math.min(ystep * 1.01, jump));
+        }
+        ylast = meas;
+        if (Double.isNaN(yt)) { yw = ydisp = meas; yv = 0; yt = t; yconf = 0; ystill = false; return; }
+        double dt = t - yt;
+        if (dt <= 0) dt = TICK;
+        double pred = yw + (ystill ? yclamp(yv * dt) : yv * dt);
+        double r = wrap(meas - pred);
+        double a = A, b = YB;
+        double turn = Math.max(ystep, 4);
+        if (Math.abs(r) > turn) { double k = Math.min(1, (Math.abs(r) - turn) / turn); a += (1 - a) * k; b += (1 - b) * k; }
+        if (ystill && dt > 4 * TICK) yv = 0;
+        yw = pred + a * r;
+        yv += b * r / dt;
+        double cap = 45 / TICK;
+        if (Math.abs(yv) > cap) yv = Math.signum(yv) * cap;
+        yconf = yconf * 0.75 + 0.25 * (Math.abs(r) < 3 ? 1 : Math.abs(r) < 10 ? 0.5 : 0);
+        yt = t;
+        ystill = false;
+    }
+
+    double yaw_at(double now) {
+        double age = now - yt, full = (per + 1) * TICK;
+        if (age > full) age = full + (age - full) * 0.25;
+        age = Math.min(age, full + TICK * 3);
+        double d = yv * Math.max(0, age + LEAD * YLEAD * yconf);
+        return yw + (ystill ? yclamp(d) : d);
+    }
+
+    double yclamp(double d) { return Math.max(-ystep, Math.min(ystep, d)); }
+    static double wrap(double d) { d %= 360; if (d >= 180) d -= 360; if (d < -180) d += 360; return d; }
+
+    public boolean has_yaw() { return !Double.isNaN(yt); }
+
+    public double head() { return ydisp; }
+
     double miss(double x, double y, double z, double dt) {
         double a = x - fx - vx * dt, b = y - fy - vy * dt, c = z - fz - vz * dt;
         return Math.sqrt(a * a + b * b + c * c);
     }
 
     void put(double x, double y, double z, double t) {
-        fx = x; fy = y; fz = z; vx = vy = vz = 0; st = t; conf = 0; still = false;
+        fx = x; fy = y; fz = z; vx = vy = vz = 0; st = t; lt = t; conf = 0; still = false;
         bt = Double.NaN; dvx = dvy = dvz = 0; shown = false;
     }
 
@@ -133,6 +186,10 @@ public final class MobSmooth {
             double cx = dx(now), cy = dy(now), cz = dz(now);
             still = true;
             blend(now, cx, cy, cz);
+        }
+        if (has_yaw()) {
+            if (!ystill && now - yt > (per + 1) * TICK + Math.max(40, jit * 4)) ystill = true;
+            ydisp += wrap(yaw_at(now) - ydisp) * YEASE / Math.max(1, Math.min(3, jit / YJIT));
         }
         double nx = dx(now), ny = dy(now), nz = dz(now);
         if (shown) { dvx = (nx - px) / TICK; dvy = (ny - py) / TICK; dvz = (nz - pz) / TICK; }

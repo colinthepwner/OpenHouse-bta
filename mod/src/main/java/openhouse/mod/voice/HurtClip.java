@@ -70,6 +70,9 @@ public final class HurtClip {
 
     private static volatile Rec rec;
     public static volatile boolean loading;
+
+    public static volatile long picker_closed;
+    public static final long PICKER_GRACE = 700;
     public static boolean recording() { return rec != null; }
     public static boolean busy() { return rec != null || loading; }
     public static void start() { if (!busy()) { rec = new Rec(); Thread t = new Thread(rec, "OpenHouse hurt sound"); t.setDaemon(true); t.start(); } }
@@ -151,7 +154,7 @@ public final class HurtClip {
             } catch (Throwable e) {
                 said = "gui.openhouse.hurt.badfile";
                 openhouse.mod.OpenHouseMod.LOG.info("[voice] hurt sound file: {}", e.toString());
-            } finally { loading = false; }
+            } finally { loading = false; picker_closed = System.currentTimeMillis(); }
         }, "OpenHouse hurt sound file");
         t.setDaemon(true);
         t.start();

@@ -69,6 +69,7 @@ public final class ScreenPassword extends Screen {
         if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) { submit(); return; }
         real.textboxKeyTyped(c, key);
         shown.setText(stars(real.getText().length()));
+        ScreenRoomText.same_cursor(real, shown);
         join.enabled = !real.getText().isEmpty();
     }
 

@@ -25,6 +25,7 @@
     "PacketHandlerClientMixin",
     "MobSmoothMixin",
     "MobPacketTimeMixin",
+    "ProjectileSmoothMixin",
     "DataLoaderMixin",
     "HalpLibeConfigMixin",
     "RichPresenceMixin",
@@ -47,6 +48,7 @@
     "server.ChunkResetSaveMixin",
     "server.MulticastMixin",
     "server.VoiceTickMixin",
-    "server.MobTrackMixin"
+    "server.MobTrackMixin",
+    "server.MobLookMixin"
   ]
 }
