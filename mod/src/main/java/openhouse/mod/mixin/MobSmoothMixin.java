@@ -27,7 +27,9 @@ public abstract class MobSmoothMixin {
             openhouse$sm = new MobSmooth();
             if (!openhouse$said) { openhouse$said = true; openhouse.mod.OpenHouseMod.LOG.info("smoothing server mobs (MobSmooth; -Dopenhouse.mobsmooth=0 turns it off)"); }
         }
+        boolean has_rot = MobSmooth.take_rot();
         openhouse$sm.sample(x, y, z);
+        if (has_rot) openhouse$sm.yaw(yr);
     }
 
     @Inject(method = "onLivingUpdate", at = @At("HEAD"))
@@ -42,10 +44,11 @@ public abstract class MobSmoothMixin {
         s.tick();
 
         newPosRotationIncrements = 0;
-        double dy = newRotationYaw - me.yRot;
+        double yaw = s.has_yaw() ? s.head() : newRotationYaw;
+        double dy = yaw - me.yRot;
         while (dy < -180) dy += 360;
         while (dy >= 180) dy -= 360;
-        me.setRot((float) (me.yRot + dy * 0.5), (float) (me.xRot + (newRotationPitch - me.xRot) * 0.5));
+        me.setRot((float) (me.yRot + dy), (float) (me.xRot + (newRotationPitch - me.xRot) * 0.7));
         me.setPos(s.px, s.py, s.pz);
         openhouse$moved = true;
     }

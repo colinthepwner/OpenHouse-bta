@@ -59,7 +59,19 @@ public final class ScreenRoomText extends Screen {
         if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) { submit(); return; }
         real.textboxKeyTyped(c, key);
         shown.setText(masked ? stars(real.getText().length()) : real.getText());
+        same_cursor(real, shown);
         bad = null;
+    }
+
+    private static java.lang.reflect.Field editor;
+    public static void same_cursor(TextFieldElement from, TextFieldElement to) {
+        try {
+            if (editor == null) { editor = TextFieldElement.class.getDeclaredField("editor"); editor.setAccessible(true); }
+            net.minecraft.client.gui.text.TextFieldEditor a = (net.minecraft.client.gui.text.TextFieldEditor) editor.get(from), b = (net.minecraft.client.gui.text.TextFieldEditor) editor.get(to);
+            b.setCursor(a.getCursor());
+        } catch (Throwable e) {
+            try { ((net.minecraft.client.gui.text.TextFieldEditor) editor.get(to)).setCursor(10000); } catch (Throwable ignored) { }
+        }
     }
 
     @Override public void render(int mx, int my, float pt) {

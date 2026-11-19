@@ -28,6 +28,8 @@ public final class VoiceCfg {
     public static volatile boolean hinted;
     public static volatile boolean hurt_custom;
 
+    public static volatile String auto_mic = "";
+
     private static File file() { return new File(OpenHouseMod.dataDir(), "voice.properties"); }
 
     public static void load() {
@@ -44,6 +46,8 @@ public final class VoiceCfg {
         ptt = "true".equals(p.getProperty("push-to-talk"));
         hinted = "true".equals(p.getProperty("hinted"));
         hurt_custom = "true".equals(p.getProperty("hurt-sound-custom"));
+        auto_mic = p.getProperty("auto-microphone", "");
+        MicAuto.start_on(auto_mic);
         try { ptt_key = Integer.parseInt(p.getProperty("push-to-talk-key", "" + Keyboard.KEY_V)); } catch (NumberFormatException ignored) { }
     }
 
@@ -61,6 +65,7 @@ public final class VoiceCfg {
         p.setProperty("push-to-talk-key", "" + ptt_key);
         p.setProperty("hinted", "" + hinted);
         p.setProperty("hurt-sound-custom", "" + hurt_custom);
+        p.setProperty("auto-microphone", auto_mic == null ? "" : auto_mic);
         File d = OpenHouseMod.dataDir();
         d.mkdirs();
         try (FileOutputStream out = new FileOutputStream(file())) { p.store(out, "OpenHouse voice chat"); } catch (Exception e) {

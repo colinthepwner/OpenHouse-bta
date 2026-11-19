@@ -120,6 +120,7 @@ public class HurtSoundComponent extends ToggleableOptionComponent<String> {
     public void onMouseClick(int mb, int x, int y, int width, int rmx, int rmy) {
         boolean on_mic = rmx >= width - 122 && rmx < width - 102 && rmy >= 2 && rmy < 22;
         if (on_mic) {
+            if (HurtClip.loading || System.currentTimeMillis() - HurtClip.picker_closed < HurtClip.PICKER_GRACE) return;
             mc.sndManager.playSound("random.click", net.minecraft.core.sound.SoundCategory.GUI_SOUNDS, 1.0F, 1.0F);
             if (mb == 1) { said_shown = null; HurtClip.upload(); return; }
             if (mb != 0 || HurtClip.loading) return;

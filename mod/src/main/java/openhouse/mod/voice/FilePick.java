@@ -45,12 +45,31 @@ final class FilePick {
     private static List<File> windows() {
         StringBuilder flt = new StringBuilder();
         for (String e : HurtClip.EXTS) flt.append(flt.length() == 0 ? "" : ";").append("*.").append(e);
-        String ps = "Add-Type -AssemblyName System.Windows.Forms;"
-                + "$o=New-Object System.Windows.Forms.Form -Property @{TopMost=$true;ShowInTaskbar=$false};"
+        String ico = icon_path();
+
+        String ps = "Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawing;"
+                + "$o=New-Object System.Windows.Forms.Form -Property @{TopMost=$true;ShowInTaskbar=$false;Text='OpenHouse'};"
+                + (ico == null ? "" : "try{$o.Icon=[System.Drawing.Icon]::FromHandle(([System.Drawing.Bitmap]::FromFile('" + ico.replace("'", "''") + "')).GetHicon());"
+                        + "$o.ShowInTaskbar=$true;$o.FormBorderStyle='None';$o.Opacity=0;$o.StartPosition='CenterScreen';$o.Size=New-Object System.Drawing.Size(1,1);$o.Show()}catch{};")
                 + "$d=New-Object System.Windows.Forms.OpenFileDialog;"
                 + "$d.Title='" + TITLE + "';$d.Multiselect=$true;$d.Filter='Sounds|" + flt + "';"
-                + "if($d.ShowDialog($o) -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8;$d.FileNames}";
+                + "$r=$d.ShowDialog($o);$o.Close();"
+                + "if($r -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8;$d.FileNames}";
         return run("powershell", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps);
+    }
+
+    private static String icon_path() {
+        try {
+            File f = new File(openhouse.mod.OpenHouseMod.dataDir(), "picker-icon.png");
+            if (!f.isFile()) {
+                java.nio.file.Path p = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("openhouse")
+                        .flatMap(m -> m.findPath("icon.png")).orElse(null);
+                if (p == null) return null;
+                f.getParentFile().mkdirs();
+                java.nio.file.Files.copy(p, f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            return f.getAbsolutePath();
+        } catch (Throwable e) { return null; }
     }
 
     private static boolean tried;
