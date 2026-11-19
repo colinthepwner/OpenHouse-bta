@@ -66,7 +66,21 @@ public final class ClientCode {
         if (target == null) return null;
         String used = firstClientRef(p);
         if (used == null) return null;
+        if (usesServer(p, a.mixinTargets)) return null;
         return "(attached to " + simple(target) + ") uses " + used.replace('/', '.');
+    }
+
+    static final String SERVER = "net/minecraft/server/";
+    private static boolean usesServer(Pool p, List<String> targets) {
+        for (int i = 1; i < p.tag.length; i++) {
+            if (p.tag[i] != 7 && p.tag[i] != 9 && p.tag[i] != 10 && p.tag[i] != 11) continue;
+            String owner = className(p, i);
+            if (owner == null) continue;
+            while (owner.startsWith("[")) owner = owner.substring(1);
+            if (owner.startsWith("L") && owner.endsWith(";")) owner = owner.substring(1, owner.length() - 1);
+            if (owner.startsWith(SERVER) && !targets.contains(owner)) return true;
+        }
+        return false;
     }
 
     private static String firstClientRef(Pool p) {
