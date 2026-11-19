@@ -13,8 +13,10 @@ public final class OpenHouseServer implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
         CommandManager.registerServerCommand(new RoomCommand());
+        CommandManager.registerServerCommand(new VoiceCommand());
 
         QuietLog.install();
+        VoiceRelay.install();
 
         if ("modern".equals(HostUi.launched())) HostWindow.open();
         GuiLog.installIfWanted();

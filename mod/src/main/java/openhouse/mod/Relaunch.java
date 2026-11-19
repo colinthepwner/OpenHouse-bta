@@ -20,7 +20,8 @@ public final class Relaunch {
                 .redirectErrorStream(true)
                 .redirectOutput(log)
                 .start();
-        OpenHouseMod.LOG.info("restarting with room {}'s mods from {}", code, packDir);
+        if (packDir == null) OpenHouseMod.LOG.info("restarting into room {} with this game's own mods", code);
+        else OpenHouseMod.LOG.info("restarting with room {}'s mods from {}", code, packDir);
         return p;
     }
 

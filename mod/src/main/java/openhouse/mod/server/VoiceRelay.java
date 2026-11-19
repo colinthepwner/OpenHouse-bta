@@ -1,0 +1,283 @@
+package openhouse.mod.server;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import net.minecraft.core.data.gamerule.GameRuleBoolean;
+import net.minecraft.core.entity.monster.MobMonster;
+import net.minecraft.core.entity.monster.MobSpider;
+import net.minecraft.core.net.handler.PacketHandler;
+import net.minecraft.core.net.packet.PacketCustomPayload;
+import net.minecraft.core.world.World;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.entity.player.PlayerServer;
+import openhouse.mod.voice.VoiceWire;
+import org.joml.primitives.AABBd;
+
+public final class VoiceRelay {
+    private VoiceRelay() { }
+
+    public static final double RANGE = 56;
+
+    static final int MAX_FRAME = 1500;
+
+    static final double SIGHT = 16, HEAR_MAX = SIGHT * 1.3;
+    static final long HEAR_EVERY_MS = 400;
+    static final boolean LOG = Boolean.getBoolean("openhouse.voicelog");
+
+    static final GameRuleBoolean MOBS_HEAR = VoiceWire.MOBS_HEAR;
+
+    private static final Set<PacketHandler> hello = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+    public static volatile boolean on = !"false".equals(System.getProperty("openhouse.voice"));
+
+    public static void install() {
+        VoiceWire.server = VoiceRelay::got;
+        VoiceWire.hurt = (p, pitch) -> p instanceof PlayerServer && hurt((PlayerServer) p, pitch);
+        load_mutes();
+    }
+
+    static void got(PacketHandler from, byte[] d) {
+        if (!on || d.length == 0) return;
+        MinecraftServer srv = MinecraftServer.getInstance();
+        if (srv == null || srv.playerList == null) return;
+        if (d[0] == VoiceWire.HURT_SET) { hurt_set(srv, from, d); return; }
+        if (d[0] == VoiceWire.HELLO) {
+
+            if (d.length > 1 && d[1] == 0) hello.remove(from); else hello.add(from);
+            PlayerServer me = find(srv, from);
+            if (me != null) {
+
+                ServerRoom room = ServerRoom.get();
+                String code = room == null || room.liveCode == null ? "" : room.liveCode;
+                byte[] cb = code.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                byte[] h = new byte[3 + Math.min(32, cb.length)];
+                h[0] = VoiceWire.HELLO; h[1] = (byte) VoiceWire.PROTO; h[2] = (byte) (h.length - 3);
+                System.arraycopy(cb, 0, h, 3, h.length - 3);
+                send(me, h);
+                send(me, new byte[] { VoiceWire.STATE, (byte) (muted_for_all(me.username) ? 1 : 0) });
+            }
+            return;
+        }
+        if (d[0] != VoiceWire.UP || d.length > MAX_FRAME || !hello.contains(from)) return;
+        List<PlayerServer> all = players(srv);
+        PlayerServer me = null;
+        for (PlayerServer p : all) if (p.playerNetServerHandler == from) { me = p; break; }
+        if (me == null) return;
+        boolean end = d.length < 3;
+        int loud = end ? 0 : d[1] & 0xFF;
+        boolean hear = !end && MOBS_HEAR_on(me);
+        if (hear) heard(me, loud);
+        byte[] out;
+        if (end) out = new byte[5];
+        else {
+            out = new byte[d.length + 4];
+            out[5] = (byte) loud;
+            System.arraycopy(d, 2, out, 6, d.length - 2);
+        }
+        out[0] = VoiceWire.DOWN;
+        int id = me.id;
+        out[1] = (byte) (id >>> 24); out[2] = (byte) (id >>> 16); out[3] = (byte) (id >>> 8); out[4] = (byte) id;
+        PacketCustomPayload pkt = new PacketCustomPayload(VoiceWire.CHANNEL, out);
+        String who = me.username;
+        boolean gagged = muted_for_all(who);
+        double r2 = RANGE * RANGE;
+        for (PlayerServer p : all) {
+            if (p == me || p.dimension != me.dimension || p.playerNetServerHandler == null || !hello.contains(p.playerNetServerHandler)) continue;
+
+            if (!end && (gagged || muted(p.username, who))) continue;
+            double dx = p.x - me.x, dy = p.y - me.y, dz = p.z - me.z;
+            if (!end && dx * dx + dy * dy + dz * dz > r2) continue;
+            p.playerNetServerHandler.netManager.addToSendQueue(pkt);
+        }
+    }
+
+    static void send(PlayerServer p, byte[] d) {
+        if (p.playerNetServerHandler != null) p.playerNetServerHandler.netManager.addToSendQueue(new PacketCustomPayload(VoiceWire.CHANNEL, d));
+    }
+
+    private static PlayerServer find(MinecraftServer srv, PacketHandler h) {
+        for (PlayerServer p : players(srv)) if (p.playerNetServerHandler == h) return p;
+        return null;
+    }
+
+    static List<PlayerServer> players(MinecraftServer srv) {
+        for (int i = 0; i < 3; i++) {
+            try { return new ArrayList<>(srv.playerList.playerEntities); } catch (RuntimeException ignored) { }
+        }
+        return Collections.emptyList();
+    }
+
+    private static final Map<String, Set<String>> mutes = new ConcurrentHashMap<>();
+    static final String ALL = "*";
+
+    private static String key(String n) { return n == null ? "" : n.toLowerCase(java.util.Locale.ROOT); }
+
+    static boolean muted(String listener, String speaker) {
+        Set<String> s = mutes.get(key(listener));
+        return s != null && s.contains(key(speaker));
+    }
+
+    static boolean muted_for_all(String speaker) { return muted(ALL, speaker); }
+
+    static boolean set_mute(String listener, String speaker, boolean m) {
+        String l = key(listener), sp = key(speaker);
+        boolean ch;
+        if (m) ch = mutes.computeIfAbsent(l, k -> ConcurrentHashMap.newKeySet()).add(sp);
+        else { Set<String> s = mutes.get(l); ch = s != null && s.remove(sp); if (s != null && s.isEmpty()) mutes.remove(l); }
+        if (ch) save_mutes();
+        return ch;
+    }
+
+    static Set<String> muted_by(String listener) {
+        Set<String> s = mutes.get(key(listener));
+        return s == null ? Collections.emptySet() : new HashSet<>(s);
+    }
+
+    static void tell_state(MinecraftServer srv, String name) {
+        for (PlayerServer p : players(srv)) if (p.username != null && p.username.equalsIgnoreCase(name) && hello.contains(p.playerNetServerHandler))
+            send(p, new byte[] { VoiceWire.STATE, (byte) (muted_for_all(name) ? 1 : 0) });
+    }
+
+    private static File mute_file() { return new File("openhouse", "voice-mutes.properties"); }
+
+    private static void load_mutes() {
+        File f = mute_file();
+        if (!f.isFile()) return;
+        Properties p = new Properties();
+        try (FileInputStream in = new FileInputStream(f)) { p.load(in); } catch (Exception e) { return; }
+        for (String l : p.stringPropertyNames()) {
+            Set<String> s = ConcurrentHashMap.newKeySet();
+            for (String sp : p.getProperty(l, "").split(",")) if (!sp.trim().isEmpty()) s.add(key(sp.trim()));
+            if (!s.isEmpty()) mutes.put(key(l), s);
+        }
+    }
+
+    private static synchronized void save_mutes() {
+        Properties p = new Properties();
+        for (Map.Entry<String, Set<String>> e : mutes.entrySet()) p.setProperty(e.getKey(), String.join(",", e.getValue()));
+        File f = mute_file();
+        f.getParentFile().mkdirs();
+        try (FileOutputStream out = new FileOutputStream(f)) { p.store(out, "OpenHouse voice mutes: listener=speakers they don't hear (* = everyone)"); } catch (Exception ignored) { }
+    }
+
+    static final class Heard { PlayerServer who; double reach; }
+    private static final ConcurrentLinkedQueue<Heard> heard_q = new ConcurrentLinkedQueue<>();
+    private static final Map<String, Long> heard_at = new ConcurrentHashMap<>();
+
+    private static boolean MOBS_HEAR_on(PlayerServer p) {
+        try {
+            World w = p.world;
+            return w != null && Boolean.TRUE.equals(w.getLevelData().getGameRules().getValue(MOBS_HEAR));
+        } catch (Throwable t) { return false; }
+    }
+
+    static double reach(int loud) {
+        double db = loud * 60.0 / 255 - 60;
+        return RANGE * Math.max(0, Math.min(1, (db + 50) / 35));
+    }
+
+    private static void heard(PlayerServer p, int loud) {
+        long now = System.currentTimeMillis();
+        Long last = heard_at.get(p.username);
+        if (last != null && now - last < HEAR_EVERY_MS) return;
+        heard_at.put(p.username, now);
+        Heard h = new Heard();
+        h.who = p;
+        h.reach = reach(loud);
+        heard_q.add(h);
+    }
+
+    public static void tick() {
+        Heard h;
+        while ((h = heard_q.poll()) != null) {
+            PlayerServer p = h.who;
+            double r = Math.min(h.reach, HEAR_MAX);
+            if (r < 1 || p.world == null || !p.isAlive() || p.getGamemode() == null || !p.getGamemode().hasHostileMobs()) {
+                continue;
+            }
+            List<MobMonster> mobs;
+            try { mobs = p.world.getEntitiesWithinAABB(MobMonster.class, new AABBd(p.x - r, p.y - r, p.z - r, p.x + r, p.y + r, p.z + r)); }
+            catch (Throwable t) { if (LOG) ServerRoom.LOG.info("[voice] mob search failed: {}", t.toString()); continue; }
+            if (LOG) ServerRoom.LOG.info("[voice] {} talking, carries {} blocks, {} monsters in reach", p.username, Math.round(h.reach), mobs.size());
+            for (MobMonster m : mobs) {
+                if (m.getTarget() != null || !m.isAlive()) continue;
+                if (m.distanceTo(p) > r) continue;
+
+                if (m instanceof MobSpider && m.calcBrightness(1.0F) >= 0.5F) continue;
+                m.setTarget(p);
+                if (LOG) ServerRoom.LOG.info("[voice] {} heard {} ({} blocks, reach {})", m.getClass().getSimpleName(), p.username, Math.round(m.distanceTo(p)), Math.round(r));
+            }
+        }
+    }
+
+    private static final Map<String, byte[]> hurt_clips = new ConcurrentHashMap<>();
+    private static final Map<String, Integer> hurt_hash = new ConcurrentHashMap<>();
+    private static final Map<PacketHandler, Set<String>> hurt_sent = Collections.synchronizedMap(new WeakHashMap<>());
+
+    private static final Set<PacketHandler> hurt_ok = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+
+    private static void hurt_set(MinecraftServer srv, PacketHandler from, byte[] d) {
+        hurt_ok.add(from);
+        PlayerServer me = find(srv, from);
+        if (LOG) ServerRoom.LOG.info("[voice] hurt sound from {}: {} bytes", me == null ? "?" : me.username, d.length - 1);
+        if (me == null || me.username == null) return;
+        String k = key(me.username);
+        if (d.length < 2 || d[1] == 0) { hurt_clips.remove(k); hurt_hash.remove(k); return; }
+        if (d.length - 1 > VoiceWire.CLIP_MAX || VoiceWire.clip_frames(d, 1) == null) return;
+        byte[] clip = java.util.Arrays.copyOfRange(d, 1, d.length);
+        hurt_clips.put(k, clip);
+        hurt_hash.put(k, java.util.Arrays.hashCode(clip));
+    }
+
+    static boolean hurt(PlayerServer p, float pitch) {
+        if (!on || p.username == null) return false;
+        String k = key(p.username);
+        byte[] clip = hurt_clips.get(k);
+        Integer hash = hurt_hash.get(k);
+        if (clip == null || hash == null) return false;
+        MinecraftServer srv = MinecraftServer.getInstance();
+        if (srv == null) return false;
+        int id = p.id;
+        byte[] play = { VoiceWire.HURT_PLAY, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id,
+                (byte) (hash >>> 24), (byte) (hash >>> 16), (byte) (hash >>> 8), (byte) (int) hash, (byte) Math.max(25, Math.min(250, Math.round(pitch * 100))) };
+        net.minecraft.core.net.packet.Packet vanilla = null;
+        double y = p.y - p.heightOffset;
+        for (PlayerServer q : players(srv)) {
+            if (q.dimension != p.dimension || q.playerNetServerHandler == null) continue;
+            double dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
+            if (dx * dx + dy * dy + dz * dz > 16 * 16) continue;
+            PacketHandler h = q.playerNetServerHandler;
+            if (LOG) ServerRoom.LOG.info("[voice] {} hurt: to {} as {}", p.username, q.username, hurt_ok.contains(h) ? "clip" : "plain sound");
+            if (hurt_ok.contains(h)) {
+                Set<String> got = hurt_sent.computeIfAbsent(h, x -> ConcurrentHashMap.newKeySet());
+                if (got.add(id + "#" + hash)) {
+                    byte[] c = new byte[9 + clip.length];
+                    System.arraycopy(play, 0, c, 0, 9);
+                    c[0] = VoiceWire.HURT_CLIP;
+                    System.arraycopy(clip, 0, c, 9, clip.length);
+                    send(q, c);
+                }
+                send(q, play);
+            } else {
+                if (vanilla == null) {
+                    int sid = net.minecraft.core.sound.SoundTypes.getSoundId(p.playerConfig.hurtSound().hurtSound);
+                    if (sid < 0) continue;
+                    vanilla = new net.minecraft.core.net.packet.PacketPlaySoundDirect(sid, net.minecraft.core.sound.SoundCategory.ENTITY_SOUNDS, p.x, y, p.z, 1.0F, pitch);
+                }
+                q.playerNetServerHandler.netManager.addToSendQueue(vanilla);
+            }
+        }
+        return true;
+    }
+}

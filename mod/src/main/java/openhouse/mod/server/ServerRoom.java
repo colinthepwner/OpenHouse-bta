@@ -382,7 +382,12 @@ public final class ServerRoom {
             java.util.List<openhouse.ModShare.Mod> packs = openhouse.ModShare.texturePacks(new java.io.File(FabricLoader.getInstance().getGameDir().toFile(), "texturepacks"));
             if (!packs.isEmpty()) LOG.info("sharing {} texture pack{} with players who join by code (theirs to turn on)", packs.size(), packs.size() == 1 ? "" : "s");
             mods.addAll(packs);
-            int modCount = mods.size() - packs.size();
+
+            java.io.File gd = FabricLoader.getInstance().getGameDir().toFile();
+            java.util.List<openhouse.ModShare.Mod> orig = openhouse.ModShare.originals(gd, new java.io.File(gd, "originals"), new java.io.File(dataDir, "originals"));
+            if (!orig.isEmpty()) LOG.info("sharing {} original mod file{} (art the ports read) with players who join by code", orig.size(), orig.size() == 1 ? "" : "s");
+            mods.addAll(orig);
+            int modCount = mods.size() - packs.size() - orig.size();
             LOG.info("sharing {} mod{} with players who join by code", modCount, modCount == 1 ? "" : "s");
 
             dataDir.mkdirs();

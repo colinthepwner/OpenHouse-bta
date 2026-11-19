@@ -36,7 +36,10 @@ repositories {
     maven("https://maven.thesignalumproject.net/infrastructure") { name = "SignalumMavenInfrastructure" }
     maven("https://maven.thesignalumproject.net/releases") { name = "SignalumMavenReleases" }
 	maven("https://maven.thesignalumproject.net/nightly") { name = "SignalumMavenNightly" }
+	maven("https://maven.maxhenkel.de/repository/public") { name = "maxhenkel" }
 }
+
+val bundled: Configuration by configurations.creating { isTransitive = false }
 dependencies {
     minecraft("::${libs.versions.bta.get()}")
 
@@ -45,6 +48,10 @@ dependencies {
 	compileOnly("dev.onvoid.webrtc:webrtc-java:0.20.0")
 
 	compileOnly("com.formdev:flatlaf:3.6.2")
+	bundled("io.github.jaredmdobson:concentus:1.0.2")
+	bundled("de.maxhenkel.rnnoise4j:rnnoise4j:2.1.3")
+	implementation("io.github.jaredmdobson:concentus:1.0.2")
+	implementation("de.maxhenkel.rnnoise4j:rnnoise4j:2.1.3")
 
 	compileOnly(libs.bundles.btaLwjgl)
 	compileOnly(libs.joml)
@@ -126,6 +133,11 @@ tasks {
 	}
 	named<Jar>("jar") {
 		from(sourceSets["boot"].output)
+
+		from(bundled.map { zipTree(it) }) {
+			exclude("META-INF/MANIFEST.MF", "META-INF/*.SF", "META-INF/*.RSA", "META-INF/maven/**")
+		}
+		duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 	}
 
 	named<AbstractArchiveTask>("jar") {

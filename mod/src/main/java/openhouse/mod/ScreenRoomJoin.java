@@ -31,7 +31,7 @@ public final class ScreenRoomJoin extends Screen {
     private final Joiner joiner;
     private Phase phase = Phase.LOOKUP;
     private List<ModShare.Mod> hostMods = new ArrayList<>(), missing = new ArrayList<>(), packsWanted = new ArrayList<>();
-    private final List<String> packsGot = new ArrayList<>();
+    private final List<String> packsGot = new ArrayList<>(), origGot = new ArrayList<>();
     private long packsGotAt;
     private String problem = "";
     private ButtonElement back, retry, download, anyway, update;
@@ -84,7 +84,7 @@ public final class ScreenRoomJoin extends Screen {
                 break;
             case CHECK:
                 if (joiner.modState == Joiner.ModState.LISTED) {
-                    if (!Version.same(joiner.hostVersion, Version.VERSION)) {
+                    if (!Version.compatible(joiner.hostVersion, joiner.hostProto)) {
                         hostOlder = Version.compare(joiner.hostVersion, Version.VERSION) < 0;
                         phase = Phase.VERSION;
                         break;
@@ -106,6 +106,7 @@ public final class ScreenRoomJoin extends Screen {
                     if (own != null) missing = own;
                     else OpenHouseMod.LOG.info("reading this game's own mod jars is taking too long - going by mod versions alone");
                     packsWanted = packsToFetch(hostMods);
+                    packsWanted.addAll(originalsToFetch(hostMods));
                     if (!packsWanted.isEmpty()) startPacks();
                     else afterPacks();
                 }
@@ -114,7 +115,7 @@ public final class ScreenRoomJoin extends Screen {
             case PACKS:
                 if (joiner.modState == Joiner.ModState.DONE) {
                     placePacks();
-                    if (packsGot.isEmpty()) afterPacks();
+                    if (packsGot.isEmpty() && origGot.isEmpty()) afterPacks();
                     else { phase = Phase.PACKS_GOT; packsGotAt = System.currentTimeMillis(); }
                 } else if (joiner.modState == Joiner.ModState.FAILED) {
                     OpenHouseMod.LOG.warn("couldn't get room {}'s texture packs ({}), joining without them", code, joiner.modError);
@@ -163,8 +164,49 @@ public final class ScreenRoomJoin extends Screen {
     private void afterPacks() {
         if (missing.isEmpty()) {
             if (!packsWanted.isEmpty()) joiner.downloadClose();
+
+            if (!origGot.isEmpty()) {
+                try {
+                    OpenHouseMod.rememberCode(code);
+                    restarted = Relaunch.start(null, code);
+                    phase = Phase.RESTART;
+                    restartAt = System.currentTimeMillis() + 4000;
+                    return;
+                } catch (Exception e) {
+                    OpenHouseMod.LOG.warn("couldn't restart to load the host's original mod files ({}), joining without them for now", e.toString());
+                }
+            }
             connect();
         } else phase = Phase.ASK;
+    }
+
+    static File originalsDir() { return new File(OpenHouseMod.dataDir(), "originals"); }
+
+    private static String originalName(ModShare.Mod m) {
+        String n = m.name == null || m.name.isEmpty() ? m.file.replaceAll("\\.orig$", "") : m.name;
+        return n.replaceAll("[\\\\/:*?\"<>|]", "_");
+    }
+
+    private static String originalBeside(ModShare.Mod m) {
+        String n = originalName(m);
+        int dot = n.lastIndexOf('.');
+        String tag = " (" + m.sha256.substring(0, 8) + ")";
+        return dot > 0 ? n.substring(0, dot) + tag + n.substring(dot) : n + tag;
+    }
+
+    private static List<ModShare.Mod> originalsToFetch(List<ModShare.Mod> host) {
+        List<ModShare.Mod> out = new ArrayList<>();
+        List<ModShare.Mod> mine = null;
+        File dir = originalsDir();
+        for (ModShare.Mod m : host) {
+            if (!ModShare.ORIGINAL.equals(m.id)) continue;
+            if (sameFile(new File(dir, originalName(m)), m) || sameFile(new File(dir, originalBeside(m)), m)) continue;
+            if (mine == null) mine = ModShare.originals(FabricLoader.getInstance().getGameDir().toFile());
+            boolean have = false;
+            for (ModShare.Mod o : mine) if (o.sha256.equals(m.sha256)) have = true;
+            if (!have) out.add(m);
+        }
+        return out;
     }
 
     private static File texturePacksDir() {
@@ -215,6 +257,20 @@ public final class ScreenRoomJoin extends Screen {
         for (ModShare.Mod m : packsWanted) {
             File got = new File(incomingPacks(), m.file);
             if (!got.isFile()) continue;
+            if (ModShare.ORIGINAL.equals(m.id)) {
+                File od = originalsDir();
+                od.mkdirs();
+                File to = new File(od, originalName(m));
+                if (to.exists()) to = new File(od, originalBeside(m));
+                try {
+                    Files.move(got.toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    origGot.add(to.getName());
+                    OpenHouseMod.LOG.info("got {} from room {} (openhouse/originals - a mod here reads its art from it)", to.getName(), code);
+                } catch (java.io.IOException e) {
+                    OpenHouseMod.LOG.warn("couldn't put {} in openhouse/originals: {}", to.getName(), e.toString());
+                }
+                continue;
+            }
             File to = new File(dir, packName(m));
             if (to.exists()) to = new File(dir, packNameBeside(m));
             try {
@@ -350,7 +406,7 @@ public final class ScreenRoomJoin extends Screen {
             for (File f : mine) keep.add(MINE + f.getName());
             List<ModShare.Mod> fetch = new ArrayList<>();
             for (ModShare.Mod m : hostMods) {
-                if (OpenHouseMod.MOD_ID.equals(m.id) || ModShare.TEXTURE_PACK.equals(m.id)) continue;
+                if (OpenHouseMod.MOD_ID.equals(m.id) || ModShare.TEXTURE_PACK.equals(m.id) || ModShare.ORIGINAL.equals(m.id)) continue;
                 keep.add(m.file);
                 File have = new File(pack, m.file);
                 if (!(have.isFile() && have.length() == m.size && m.sha256.equals(Rtc.sha256(have)))) fetch.add(m);
@@ -497,8 +553,11 @@ public final class ScreenRoomJoin extends Screen {
                 break;
             }
             case PACKS_GOT:
-                lines.add(t.translateKeyAndFormat("gui.openhouse.packs.got", String.join(", ", packsGot)));
-                lines.add(t.translateKey(packsGot.size() == 1 ? "gui.openhouse.packs.where" : "gui.openhouse.packs.where2"));
+                if (!packsGot.isEmpty()) {
+                    lines.add(t.translateKeyAndFormat("gui.openhouse.packs.got", String.join(", ", packsGot)));
+                    lines.add(t.translateKey(packsGot.size() == 1 ? "gui.openhouse.packs.where" : "gui.openhouse.packs.where2"));
+                }
+                if (!origGot.isEmpty()) lines.add(t.translateKeyAndFormat("gui.openhouse.originals.got", String.join(", ", origGot)));
                 color = 0xFFFFFF;
                 break;
             case DOWNLOAD: {

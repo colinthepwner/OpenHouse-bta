@@ -61,6 +61,29 @@ Just place OpenHost.jar in a folder and double-click it; the rest should be self
 - Tick **Keep the mods in my folder** to play with your own mods too, next to the host's. If you
   both have the same mod, the host's is used.
 - The host's texture packs land in your texture pack list, switched off.
+- Some mods need a file from the original mod they were ported from. If the host has it, you get
+  it too.
+
+# Voice chat
+Talk to the players near you, the closer they are the louder they sound. It works with Minecraft
+Rocket Edition players too.
+
+- It's on by default. Just talk. **M** mutes you.
+- The mic button in the pause menu has the settings: your microphone, volume, push to talk, and
+  Hear Myself to check how you sound.
+- Game sounds, music and other players coming out of your speakers are kept out of your mic.
+- The music turns down a little while someone nearby is talking.
+- **Voice Chat** volume is also under Options > Audio.
+- `/mute <player>` and `/unmute <player>` are just for you. Ops can mute someone for everyone with
+  `/mute <player> @a`.
+- Gamerule `mobsHearVoice` (off by default) lets monsters hear you talking.
+
+## Custom hurt sound
+Options > Player > Hurt Sound has a **Custom** setting with a mic button next to it.
+
+- Hold the button to record, or click it and say something.
+- Right-click it to use a sound file (`.wav` or `.ogg`) instead.
+- Only a short sound is kept. Everyone with OpenHouse or Rocket Edition hears it when you get hurt.
 
 # Passwords and whitelists
 - `/oh password <password>` in your opened world or the server console. Friends type it once when
@@ -83,8 +106,8 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 
 - OpenHouse can be added to your existing Babric server: put the mod in its `mods` folder and
   type `/oh` in the console for the code.
-- Everyone in a world needs the same version of OpenHouse. When a new one is out, OH tells you
-  and can update itself with one click.
+- Everyone in a world needs a matching version of OpenHouse. Close versions usually work together,
+  and when they don't, OH tells you and can update itself with one click.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
   that goes with their name.
 - Two people can't play under the same name at once.

@@ -130,6 +130,7 @@ public final class OpenHouseMod implements ClientModInitializer {
         TextureRegistry.excludedNamespaces.add(MOD_ID);
         Registries.NAMESPACES.register(MOD_ID, MOD_ID);
         typed = settings().getProperty("lastCode", "");
+        openhouse.mod.voice.Voice.init();
     }
 
     public static String worldFolder(Minecraft mc) {
@@ -170,6 +171,8 @@ public final class OpenHouseMod implements ClientModInitializer {
     }
 
     static volatile String connectTarget, connectRoom;
+
+    public static String joinedRoom() { return connectRoom; }
 
     public static String targetFor(String host, int port) {
         Joiner j = joiner;
