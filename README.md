@@ -1,7 +1,15 @@
 # OpenHouse (OH)
-![OpenHouse](art/openhouse-logo-x8.png)
+![OpenHouse: Better than Adventure with your friends. They join with a code, not an IP.](art/openhouse-banner.png)
 
 Easily launch a BTA! server for you and your friends, zero port forwarding.
+
+- **Room codes.** Open any world to friends from the pause menu and share a short code. No IP, no port forwarding.
+- **Mods come with you.** Friends who join download your mods and texture packs by themselves.
+- **Voice chat.** Talk to whoever's nearby, plus your own custom hurt sounds.
+- **Rewind.** Every save of your world on a timeline with pictures. Load an old one without touching the real world.
+- **Player locator.** Friends' names show through walls in their own colour, and as dots when they're far away.
+- **OpenHost.** An always-online server with a proper window: players, mods, settings and a console that understands lazy commands.
+- **Plays nice.** Joins from Better than Adventure, the helper, or [Rocket Edition](https://mcrocket.lol) in a browser.
 
 ## Which download do I need?
 
