@@ -257,6 +257,27 @@ public final class OpenHouseMod implements ClientModInitializer {
         }
     }
 
+    private static Boolean locator_on;
+
+    static boolean locator_on() {
+        Boolean b = locator_on;
+        if (b == null) locator_on = b = !"false".equals(settings().getProperty("player-locator", "true").trim());
+        return b;
+    }
+
+    static void set_locator(boolean on) {
+        locator_on = on;
+        Properties p = settings();
+        p.setProperty("player-locator", on ? "true" : "false");
+        File d = dataDir();
+        d.mkdirs();
+        try (FileOutputStream out = new FileOutputStream(new File(d, "openhouse.properties"))) {
+            p.store(out, "OpenHouse");
+        } catch (Exception e) {
+            LOG.warn("can't save player-locator: {}", e.toString());
+        }
+    }
+
     static void rememberCode(String code) {
         Properties p = settings();
         if (code.equals(p.getProperty("lastCode"))) return;

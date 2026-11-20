@@ -71,6 +71,15 @@ public abstract class MobSmoothMixin {
         ((Entity) (Object) this).setPos(openhouse$x, openhouse$y, openhouse$z);
     }
 
+    @Inject(method = "tryToDespawn", at = @At("HEAD"))
+    private void openhouse$frozen(CallbackInfo ci) {
+        Mob me = (Mob) (Object) this;
+        if (openhouse$sm == null || me.world == null || !me.world.isClientSide) return;
+        me.xo = me.x; me.yo = me.y; me.zo = me.z; me.yRotO = me.yRot; me.xRotO = me.xRot;
+        me.yBodyRotO = me.yBodyRot; me.walkAnimSpeedO = me.walkAnimSpeed;
+        openhouse$place(ci);
+    }
+
     @Unique
     private void openhouse$clip(Entity me, MobSmooth s) {
         openhouse$x = s.px; openhouse$y = s.py; openhouse$z = s.pz;

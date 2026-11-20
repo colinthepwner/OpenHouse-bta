@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = PacketHandlerClient.class, remap = false)
 public abstract class MobPacketTimeMixin {
     @Inject(method = "handleMoveEntity", at = @At("HEAD"))
-    private void openhouse$moveTime(PacketMoveEntity p, CallbackInfo ci) { MobSmooth.stamp(p.creationTimeMillis, p.rotating); }
+    private void openhouse$moveTime(PacketMoveEntity p, CallbackInfo ci) { MobSmooth.stamp(p.creationTimeMillis, p.rotating, p.x != 0 || p.y != 0 || p.z != 0); }
 
     @Inject(method = "handleMoveEntity", at = @At("RETURN"))
     private void openhouse$moveDone(PacketMoveEntity p, CallbackInfo ci) { MobSmooth.stamp(0, false); }

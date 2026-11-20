@@ -115,7 +115,9 @@ gui.openhouse.voice.mode.ptt=Talk: Push to Talk
 gui.openhouse.voice.pttkey=Talk Key: %s
 gui.openhouse.voice.status.ptt=Hold %s to talk (the bar goes gold).
 gamerule.mobs_hear_voice=Mobs Hear Voice Chat
+gamerule.show_player_locator=Show Player Locator
 options.openhouse.voice=Voice Chat
+options.openhouse.locator=Player Locator
 gui.openhouse.voice.self.on=Hear Myself: ON (use headphones)
 gui.openhouse.voice.self.off=Hear Myself: OFF
 gui.openhouse.voice.status.self=Talk and you'll hear exactly what others hear.
@@ -176,4 +178,5 @@ gui.openhouse.roomtext.code.hint=6-16 letters or numbers, like MYWORLD. Empty = 
 gui.openhouse.roomtext.code.bad=Use 6-16 letters or numbers, like MYWORLD
 gui.openhouse.lan.button.code.tip=Shift-click: password   Right-click: new code
 
+gui.openhouse.update.quiet=OpenHouse %s is out
 gui.openhouse.hurt.only3=Used the first 3
