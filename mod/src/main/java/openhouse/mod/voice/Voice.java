@@ -79,7 +79,7 @@ public final class Voice {
         PacketHandlerClient l = mc.currentWorld != null && mc.isMultiplayerWorld() && me instanceof PlayerLocalMultiplayer
                 ? ((PlayerLocalMultiplayer) me).sendQueue : null;
         link = l;
-        if (l != hello_link) { hello_link = l; server_ok = false; server_muted = false; openhouse.mod.Locator.forced = null; server_code = ""; hello_at = 0; hello_tries = 0; hurt_sent = false; HurtClip.forget_all();
+        if (l != hello_link) { hello_link = l; server_ok = false; server_muted = false; openhouse.mod.Locator.forced = null; openhouse.mod.MsgKeys.forget(); server_code = ""; hello_at = 0; hello_tries = 0; hurt_sent = false; HurtClip.forget_all();
 
             if (VoiceCfg.hurt_custom && net.minecraft.client.option.GameSettings.PLAYER_HURT_SOUND.value != net.minecraft.core.entity.player.Player.PlayerConfig.HurtSound.NEUTRAL) HurtClip.neutral_under(); }
         long now = System.currentTimeMillis();
@@ -259,6 +259,7 @@ public final class Voice {
             openhouse.mod.Locator.forced = d.length < 2 ? null : (d[1] & 2) != 0 ? Boolean.FALSE : (d[1] & 4) != 0 ? Boolean.TRUE : null;
             return;
         }
+        if (d[0] == VoiceWire.MSG_KEYS) { openhouse.mod.MsgKeys.got(d); return; }
         if (d[0] == VoiceWire.HURT_CLIP) { HurtClip.got_clip(d); return; }
         if (d[0] == VoiceWire.HURT_PLAY) { HurtClip.got_play(d); return; }
         if (d[0] != VoiceWire.DOWN || d.length < 5) return;

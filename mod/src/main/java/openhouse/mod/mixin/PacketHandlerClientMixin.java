@@ -14,6 +14,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = PacketHandlerClient.class, remap = false)
 public abstract class PacketHandlerClientMixin {
 
+    @Inject(method = "handleTranslatableMessage", at = @At("HEAD"), require = 0)
+    private void openhouse$msg_key(net.minecraft.core.net.packet.PacketMessageTranslatable p, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        p.key = openhouse.mod.MsgKeys.remap(p.key);
+    }
+
     @Redirect(method = "handleHandshake", at = @At(value = "INVOKE", target = "Ljava/lang/String;equalsIgnoreCase(Ljava/lang/String;)Z"), require = 0)
     private boolean openhouse$roomDecides(String answer, String ok) {
         if (answer != null && answer.equalsIgnoreCase(ok)) return true;

@@ -71,6 +71,7 @@ public final class VoiceRelay {
                 System.arraycopy(cb, 0, h, 3, h.length - 3);
                 send(me, h);
                 send(me, new byte[] { VoiceWire.STATE, state_of(me.username) });
+                send(me, openhouse.mod.MsgKeys.wire(VoiceWire.MSG_KEYS));
             }
             return;
         }
