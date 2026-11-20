@@ -103,6 +103,8 @@ public final class HostWindow {
 
     final JLabel pwState = new JLabel(" ");
     final JCheckBox whitelistBox = new JCheckBox("Only players on the whitelist", ServerRoom.get().whitelist);
+
+    final JCheckBox locatorBox = new JCheckBox("Show friends through walls (player locator)", true);
     final JLabel chipPlayers = chip(), chipTps = chip(), chipMem = chip(), chipUp = chip();
     final DefaultListModel<PlayerRow> players = new DefaultListModel<>();
     final JList<PlayerRow> playerList = new JList<>(players);
@@ -485,6 +487,10 @@ public final class HostWindow {
         editWl.addActionListener(e -> editWhitelist());
         p.add(Box.createVerticalStrut(6));
         p.add(editWl);
+        p.add(Box.createVerticalStrut(10));
+        locatorBox.setAlignmentX(0);
+        locatorBox.addActionListener(e -> run("oh locator " + (locatorBox.isSelected() ? "on" : "off")));
+        p.add(locatorBox);
         p.add(Box.createVerticalStrut(16));
 
         p.add(section("Memory"));
@@ -891,6 +897,8 @@ public final class HostWindow {
         pwState.setText(room.password.isEmpty() ? "No password, anyone with the code can join" : "Password set, players need it to join");
         pwState.setForeground(room.password.isEmpty() ? dim() : ok());
         if (whitelistBox.isSelected() != room.whitelist) whitelistBox.setSelected(room.whitelist);
+        boolean loc = LocatorCommand.rule_on(MinecraftServer.getInstance());
+        if (locatorBox.isSelected() != loc) locatorBox.setSelected(loc);
 
         long now = System.currentTimeMillis(), ticks = TICKS.get();
         if (ticks > 0 && firstTickAt == 0) firstTickAt = now;

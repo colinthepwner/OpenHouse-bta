@@ -39,12 +39,15 @@ public final class VoiceRelay {
     static final GameRuleBoolean MOBS_HEAR = VoiceWire.MOBS_HEAR;
 
     private static final Set<PacketHandler> hello = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+
+    private static final Set<PacketHandler> known = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
     public static volatile boolean on = !"false".equals(System.getProperty("openhouse.voice"));
 
     public static void install() {
         VoiceWire.server = VoiceRelay::got;
         VoiceWire.hurt = (p, pitch) -> p instanceof PlayerServer && hurt((PlayerServer) p, pitch);
         load_mutes();
+        load_locator();
     }
 
     static void got(PacketHandler from, byte[] d) {
@@ -56,6 +59,7 @@ public final class VoiceRelay {
         if (d[0] == VoiceWire.HELLO) {
 
             if (d.length > 1 && d[1] == 0) hello.remove(from); else hello.add(from);
+            known.add(from);
             PlayerServer me = find(srv, from);
             if (me != null) {
 
@@ -66,7 +70,7 @@ public final class VoiceRelay {
                 h[0] = VoiceWire.HELLO; h[1] = (byte) VoiceWire.PROTO; h[2] = (byte) (h.length - 3);
                 System.arraycopy(cb, 0, h, 3, h.length - 3);
                 send(me, h);
-                send(me, new byte[] { VoiceWire.STATE, (byte) (muted_for_all(me.username) ? 1 : 0) });
+                send(me, new byte[] { VoiceWire.STATE, state_of(me.username) });
             }
             return;
         }
@@ -146,8 +150,45 @@ public final class VoiceRelay {
     }
 
     static void tell_state(MinecraftServer srv, String name) {
-        for (PlayerServer p : players(srv)) if (p.username != null && p.username.equalsIgnoreCase(name) && hello.contains(p.playerNetServerHandler))
-            send(p, new byte[] { VoiceWire.STATE, (byte) (muted_for_all(name) ? 1 : 0) });
+        for (PlayerServer p : players(srv)) if (p.username != null && p.username.equalsIgnoreCase(name) && known.contains(p.playerNetServerHandler))
+            send(p, new byte[] { VoiceWire.STATE, state_of(name) });
+    }
+
+    static byte state_of(String name) {
+        Boolean loc = locator.get(key(name));
+        return (byte) ((muted_for_all(name) ? 1 : 0) | (Boolean.FALSE.equals(loc) ? 2 : 0) | (Boolean.TRUE.equals(loc) ? 4 : 0));
+    }
+
+    private static final Map<String, Boolean> locator = new ConcurrentHashMap<>();
+
+    static Boolean locator_of(String name) { return locator.get(key(name)); }
+
+    static Map<String, Boolean> locator_all() { return new java.util.TreeMap<>(locator); }
+
+    static boolean set_locator(String name, Boolean v) {
+        String k = key(name);
+        Boolean was = v == null ? locator.remove(k) : locator.put(k, v);
+        boolean ch = v == null ? was != null : !v.equals(was);
+        if (ch) save_locator();
+        return ch;
+    }
+
+    private static File locator_file() { return new File("openhouse", "locator.properties"); }
+
+    private static void load_locator() {
+        File f = locator_file();
+        if (!f.isFile()) return;
+        Properties p = new Properties();
+        try (FileInputStream in = new FileInputStream(f)) { p.load(in); } catch (Exception e) { return; }
+        for (String n : p.stringPropertyNames()) locator.put(key(n), !"off".equals(p.getProperty(n, "").trim()));
+    }
+
+    private static synchronized void save_locator() {
+        Properties p = new Properties();
+        for (Map.Entry<String, Boolean> e : locator.entrySet()) p.setProperty(e.getKey(), e.getValue() ? "on" : "off");
+        File f = locator_file();
+        f.getParentFile().mkdirs();
+        try (FileOutputStream out = new FileOutputStream(f)) { p.store(out, "OpenHouse player locator, per player: on/off (missing = the showPlayerLocator game rule)"); } catch (Exception ignored) { }
     }
 
     private static File mute_file() { return new File("openhouse", "voice-mutes.properties"); }

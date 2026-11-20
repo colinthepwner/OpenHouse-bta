@@ -41,4 +41,6 @@ public final class VoiceWire {
     }
 
     public static final GameRuleBoolean MOBS_HEAR = GameRules.register(new GameRuleBoolean("mobsHearVoice", "gamerule.mobs_hear_voice", false));
+
+    public static final GameRuleBoolean LOCATOR = GameRules.register(new GameRuleBoolean("showPlayerLocator", "gamerule.show_player_locator", true));
 }

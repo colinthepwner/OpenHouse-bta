@@ -37,4 +37,10 @@ public abstract class MobRendererPlayerMixin {
         }
         return self.bindDownloadableTexture(url, fallback, parser);
     }
+
+    @Inject(method = "renderSpecials(Lnet/minecraft/client/render/tessellator/TessellatorGeneral;Lnet/minecraft/core/entity/player/Player;DDD)V",
+            at = @At("HEAD"), cancellable = true, require = 0)
+    private void openhouse$no_label(TessellatorGeneral t, Player p, double x, double y, double z, CallbackInfo ci) {
+        if (openhouse.mod.Locator.active(Minecraft.getMinecraft())) ci.cancel();
+    }
 }

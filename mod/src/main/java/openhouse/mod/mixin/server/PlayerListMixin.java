@@ -54,6 +54,8 @@ public abstract class PlayerListMixin {
 
     @Inject(method = "playerLoggedIn", at = @At("HEAD"))
     private void openhouse$free_spot(PlayerServer p, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+
+        if (p.chatColor == 0) p.chatColor = openhouse.mod.NameColor.code_of(p.username);
         try {
             MinecraftServer server = MinecraftServer.getInstance();
             net.minecraft.core.world.World w = server == null ? null : server.getDimensionWorld(p.dimension);

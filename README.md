@@ -131,6 +131,10 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
   that goes with their name.
 - Two people can't play under the same name at once.
+- Your friends' names show through walls in their own colour (the same one their name has in chat), and turn into a dot when they're far
+  away, so you can always find each other. Sneaking hides you behind walls. Turn it off in
+  Options > Player. Hosts can turn it off for everyone (`/gamerule showPlayerLocator false`) or
+  for some players (`/oh locator off <players>`, `@a` works).
 - Your world gets backed up when you leave it, before and after you open it to friends, and once
   a day. The backups are in `openhouse/backups` and on the rewind timeline. If something in a world
   gets broken, OH fixes it the next time you open the world.

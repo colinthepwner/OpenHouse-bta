@@ -19,7 +19,10 @@ public final class MobSmooth {
 
     static boolean rot;
 
-    public static void stamp(long ms, boolean has_rot) { stamp = ms; rot = has_rot; }
+    static boolean pos = true;
+
+    public static void stamp(long ms, boolean has_rot, boolean has_pos) { stamp = ms; rot = has_rot; pos = has_pos; }
+    public static void stamp(long ms, boolean has_rot) { stamp(ms, has_rot, true); }
     public static void stamp(long ms) { stamp(ms, true); }
     public static boolean take_rot() { boolean r = rot; rot = false; return r; }
     public static long spawn;
@@ -79,6 +82,9 @@ public final class MobSmooth {
     public void sample(double x, double y, double z) {
         long arr = stamp != 0 ? stamp : wall.getAsLong();
         stamp = 0;
+        boolean moved = pos; pos = true;
+
+        if (!moved && ready()) { lt = tick_lock(arr); if (per > 1) lt = st + Math.max(1, Math.round((lt - st) / (per * TICK))) * per * TICK; return; }
         double was_y = ly;
         lx = x; ly = y; lz = z;
         double t = tick_lock(arr);
@@ -89,11 +95,12 @@ public final class MobSmooth {
         if (ticks >= 1 && ticks <= 12) { if (ticks % 3 == 0) g3 += 1; else goff += 1; }
         per = goff > 0.2 * (g3 + goff) ? 1 : 3;
 
-        if (t <= st) st = t - per * TICK;
+        if (t - st < TICK * 0.5) st = t - per * TICK;
 
         if (per > 1) t = st + Math.max(1, Math.round((t - st) / (per * TICK))) * per * TICK;
         double now = now_ms();
         double cx = dx(now), cy = dy(now), cz = dz(now);
+        la = now;
 
         while (FIT && t - st >= 2 * per * TICK && conf > 0.3) {
             double d1 = t - st, d0 = d1 - per * TICK;
@@ -140,11 +147,21 @@ public final class MobSmooth {
 
         double qvy = (at_y(now) - at_y(now - 10)) / 10;
         if (gy > 0 ? dvy < qvy : dvy > qvy) bvy = qvy;
+
+        double qvx = (at_x(now) - at_x(now - 10)) / 10, qvz = (at_z(now) - at_z(now - 10)) / 10;
+        double rx = dvx - qvx, rz = dvz - qvz, el = Math.hypot(gx, gz), len = blen();
+        if (el < 1e-6) return;
+        double ux = -gx / el, uz = -gz / el, rp = rx * ux + rz * uz;
+        double slack = PVBE / (0.148 * len);
+        double keep = rp > 0 ? Math.min(rp, slack) : Math.max(rp, -4 * el / len - slack);
+        bvx = qvx + rx - (rp - keep) * ux; bvz = qvz + rz - (rp - keep) * uz;
     }
+    static final double PVBE = 0.02;
+    double blen() { return calm > 0 ? CALM_BLEND : BLEND * Math.max(1, Math.min(3, jit / JIT_REF)); }
 
     double bl(double now, double q, double qv, double b, double bv) {
 
-        double len = calm > 0 ? CALM_BLEND : BLEND * Math.max(1, Math.min(3, jit / JIT_REF));
+        double len = blen();
         if (Double.isNaN(bt) || now - bt >= len) return q;
         double u = (now - bt) / len, vb = bv + (qv - bv) * u, pa = b + vb * (now - bt);
         return pa + (q - pa) * u;
@@ -201,7 +218,7 @@ public final class MobSmooth {
 
     void put(double x, double y, double z, double t) {
         fx = x; fy = y; fz = z; vx = vy = vz = 0; st = t; lt = t; conf = 0; still = false;
-        bt = Double.NaN; dvx = dvy = dvz = 0; shown = false; calm = 0;
+        bt = Double.NaN; dvx = dvy = dvz = 0; shown = false; calm = 0; la = now_ms();
     }
 
     public void tick() {
@@ -246,8 +263,21 @@ public final class MobSmooth {
 
     static double clamp(double d) { return Math.max(-STEP, Math.min(STEP, d)); }
 
-    double at_x(double now) { return fx + dsp(vx, now, true); }
-    double at_z(double now) { return fz + dsp(vz, now, true); }
+    static final double CAP = num("ms.cap", STEP), CAPJ = num("ms.capj", 30), JK = num("ms.jk", 4);
+    double la = Double.NaN;
+    double hx, hz;
+    void at_xz(double now) {
+        double x = fx + dsp(vx, now, true), z = fz + dsp(vz, now, true), l = Math.hypot(vx, vz);
+        if (l > 1e-12) {
+
+            double age = now - st, run = still ? 0 : (per > 1 ? Math.min(Math.max(0, now - la), per * TICK) : 0) + Math.max(0, Math.min(Math.max(CAPJ, jit * JK), age - per * TICK));
+            double e = (x - lx) * vx / l + (z - lz) * vz / l - CAP - l * run;
+            if (e > 0) { x -= e * vx / l; z -= e * vz / l; }
+        }
+        hx = x; hz = z;
+    }
+    double at_x(double now) { at_xz(now); return hx; }
+    double at_z(double now) { at_xz(now); return hz; }
 
     double at_y(double now) { if (wet) return fy; double d = dsp(vy, now, true) * 0.5; return fy + Math.max(-0.5, Math.min(0.5, d)); }
 }

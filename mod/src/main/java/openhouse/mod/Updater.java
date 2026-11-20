@@ -13,6 +13,8 @@ public final class Updater {
 
     static final Update.Release NONE = new Update.Release(null, null, null, null, 0);
     static volatile Update.Release latest;
+
+    public static volatile Update.Release quiet;
     private static volatile boolean started;
 
     static void checkInBackground() {
@@ -21,8 +23,9 @@ public final class Updater {
         Thread t = new Thread(() -> {
             try {
 
-                Update.Release r = Update.mod_to_offer(gameVersion());
-                latest = r == null ? NONE : r;
+                Update.Release[] rs = Update.mod_check(gameVersion());
+                quiet = rs[0] == null && rs[1] != null && rs[1].newer() ? rs[1] : null;
+                latest = rs[0] == null ? NONE : rs[0];
             } catch (Exception e) {
                 OpenHouseMod.LOG.info("couldn't check for an OpenHouse update: {}", e.toString());
                 latest = NONE;

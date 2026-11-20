@@ -36,6 +36,20 @@ public abstract class VoiceOptionsMixin {
     }
 
     @Inject(method = "init", at = @At("TAIL"), require = 0)
+    private static void openhouse$locatorRow(CallbackInfo ci) {
+        try {
+            if (OptionsPages.PLAYER == null) return;
+            for (OptionsComponent c : OptionsPages.PLAYER.getComponents()) {
+                if (!(c instanceof OptionsCategory)) continue;
+                ((OptionsCategoryAccessor) c).openhouse$components().add(new net.minecraft.client.gui.options.components.BooleanOptionComponent(openhouse.mod.LocatorOption.INSTANCE));
+                return;
+            }
+        } catch (Throwable t) {
+            openhouse.mod.OpenHouseMod.LOG.info("couldn't add Player Locator to Options: {}", t.toString());
+        }
+    }
+
+    @Inject(method = "init", at = @At("TAIL"), require = 0)
     private static void openhouse$voiceSlider(CallbackInfo ci) {
         try {
             if (OptionsPages.AUDIO == null) return;

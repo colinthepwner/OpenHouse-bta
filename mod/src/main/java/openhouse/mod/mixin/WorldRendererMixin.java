@@ -17,4 +17,9 @@ public abstract class WorldRendererMixin {
     private void openhouse$world_shot(float pt, CallbackInfo ci) {
         WorldShots.frame(mc);
     }
+
+    @Inject(method = "renderWorld", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/WorldRenderer;renderHand(F)V"), require = 0)
+    private void openhouse$locator(float pt, long until, CallbackInfo ci) {
+        openhouse.mod.Locator.draw(mc, pt);
+    }
 }

@@ -45,28 +45,36 @@ public final class Update {
     static final int BATCH = 3;
 
     public static Release mod_to_offer(String gameVersion) throws IOException {
-        Map<String, Object> r = held();
+        Map<String, Object> r = held(null);
         return r == null ? null : mod_asset(r, gameVersion);
     }
 
+    public static Release[] mod_check(String gameVersion) throws IOException {
+        @SuppressWarnings("unchecked") Map<String, Object>[] top = new Map[1];
+        Map<String, Object> r = held(top);
+        return new Release[] { r == null ? null : mod_asset(r, gameVersion), top[0] == null ? null : mod_asset(top[0], gameVersion) };
+    }
+
     public static Release openhost_to_offer() throws IOException {
-        Map<String, Object> r = held();
+        Map<String, Object> r = held(null);
         if (r == null) return null;
         for (Map<String, Object> a : assets(r))
             if (OPENHOST_ASSET.equals(Json.str(a.get("name")))) return release(Version.base(Json.str(r.get("tag_name"))), a);
         throw new IOException("the newest release has no OpenHost.jar");
     }
 
-    static Map<String, Object> held() throws IOException {
+    static Map<String, Object> held(Map<String, Object>[] top) throws IOException {
         HttpURLConnection c = open(LIST_API, "application/vnd.github+json");
         String body;
         try (InputStream in = c.getInputStream()) { body = new String(readAll(in, 4 << 20), StandardCharsets.UTF_8); }
 
         long now = c.getDate() > 0 ? c.getDate() : System.currentTimeMillis();
-        return pick(body, Version.VERSION, Version.PROTOCOL, now);
+        return pick(body, Version.VERSION, Version.PROTOCOL, now, top);
     }
 
-    static Map<String, Object> pick(String body, String mine, int proto, long now) throws IOException {
+    static Map<String, Object> pick(String body, String mine, int proto, long now) throws IOException { return pick(body, mine, proto, now, null); }
+
+    static Map<String, Object> pick(String body, String mine, int proto, long now, Map<String, Object>[] top) throws IOException {
         Object all = Json.parse(body);
         if (!(all instanceof List)) throw new IOException("GitHub's answer didn't make sense");
         List<Map<String, Object>> missing = new ArrayList<>();
@@ -78,6 +86,7 @@ public final class Update {
         }
         if (missing.isEmpty()) return null;
         missing.sort((a, b) -> Version.compare(Version.base(Json.str(b.get("tag_name"))), Version.base(Json.str(a.get("tag_name")))));
+        if (top != null) top[0] = missing.get(0);
         boolean urgent = false;
         for (Map<String, Object> r : missing) {
             String t = Json.str(r.get("body"));
