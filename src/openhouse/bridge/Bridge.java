@@ -247,7 +247,8 @@ public final class Bridge {
                 login_rest(p);
                 xlate = true;
                 log.accept("bridging a BTA " + name(proto) + " player to this BTA " + name(srv) + " server");
-                send(out, srv_lock, bridged_note(), false);
+
+                if (srv_oh) send(out, srv_lock, bridged_note(), false);
                 p.flush_to(out, srv_lock, true);
                 return;
             }
@@ -306,6 +307,7 @@ public final class Bridge {
                 }
 
                 if (id == 250 || id == 0) {
+                    if (id == 250) srv_oh = true;
                     ByteArrayOutputStream b = new ByteArrayOutputStream();
                     DataOutputStream w = new DataOutputStream(b);
                     w.writeByte(id);
@@ -951,6 +953,8 @@ public final class Bridge {
     public static final int WRAP = 247;
 
     public static final String BRIDGED = "OH|bridged";
+
+    volatile boolean srv_oh;
     static ByteArrayOutputStream bridged_note() throws IOException {
         ByteArrayOutputStream b = new ByteArrayOutputStream();
         DataOutputStream w = new DataOutputStream(b);

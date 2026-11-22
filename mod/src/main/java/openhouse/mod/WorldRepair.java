@@ -46,6 +46,7 @@ public final class WorldRepair {
         final File file; final int sector; final int x, z; final long ticks; final String from;
         long[] masks;
         short[] tops;
+        int[] secs;
         Cand(File file, int sector, int x, int z, long ticks, String from) {
             this.file = file; this.sector = sector; this.x = x; this.z = z; this.ticks = ticks; this.from = from;
         }
@@ -58,7 +59,19 @@ public final class WorldRepair {
         Cand m = new Cand(c.file, c.sector, x, z, c.ticks, x == c.x && z == c.z ? c.from : "moved from " + c.x + "," + c.z);
         m.masks = c.masks;
         m.tops = c.tops;
+        m.secs = c.secs;
         return m;
+    }
+
+    static boolean same_blocks(Cand a, Cand b) {
+        if (a == null || b == null || a.secs == null || b.secs == null) return false;
+        int tot = 0, eq = 0;
+        for (int i = 0; i < 16; i++) {
+            if (a.secs[i] == 0 && b.secs[i] == 0) continue;
+            tot++;
+            if (a.secs[i] == b.secs[i]) eq++;
+        }
+        return tot > 0 && eq * 4 >= tot * 3;
     }
 
     static byte[] readAll(File f) throws IOException { return Files.readAllBytes(f.toPath()); }
@@ -105,6 +118,7 @@ public final class WorldRepair {
         ListTag secs = lv.getListOrDefault("Sections", null);
         if (secs == null) return;
         long[] m = new long[4 * 16 * 4];
+        int[] sh = new int[16];
         boolean any = false;
         for (Tag<?> t : secs) {
             if (!(t instanceof CompoundTag)) continue;
@@ -113,6 +127,10 @@ public final class WorldRepair {
             int sy = s.getInteger("yPos");
             if (blocks == null || blocks.length < 4096 || sy < 0 || sy > 15) continue;
             any = true;
+            int h = 1;
+            boolean air = true;
+            for (short v : blocks) { int id = v & 16383; h = 31 * h + id; if (id != 0) air = false; }
+            sh[sy] = air ? 0 : (h == 0 ? 1 : h);
             for (int e = 0; e < 4; e++) for (int i = 0; i < 16; i++) {
                 int x = e == 0 || e == 1 ? i : (e == 2 ? 0 : 15);
                 int z = e == 2 || e == 3 ? i : (e == 0 ? 0 : 15);
@@ -133,6 +151,7 @@ public final class WorldRepair {
         }
         c.masks = m;
         c.tops = tops;
+        c.secs = sh;
     }
 
     static final int[] DX = { 0, 0, -1, 1 }, DZ = { -1, 1, 0, 0 }, OPP = { 1, 0, 3, 2 };
@@ -246,10 +265,16 @@ public final class WorldRepair {
         }
 
         int[] n = new int[1];
+        Map<Long, Double> seam_bad = new HashMap<>();
         for (Map.Entry<Long, Cand> e : world.entrySet()) {
             double s = score(e.getValue(), world, null, n);
-            if (!(n[0] >= 2 && s > BAD)) continue;
-            long home = fits_elsewhere(e.getValue(), e.getKey(), world, n);
+            if (n[0] >= 2 && s > BAD) seam_bad.put(e.getKey(), s);
+        }
+        Set<Long> wrecked = new HashSet<>(problem.keySet());
+        wrecked.addAll(seam_bad.keySet());
+        for (Map.Entry<Long, Double> e : seam_bad.entrySet()) {
+            double s = e.getValue();
+            long home = fits_elsewhere(world.get(e.getKey()), e.getKey(), world, wrecked, n);
             int x = (int) (e.getKey() >> 32), z = (int) (long) e.getKey();
             if (home != Long.MIN_VALUE) problem.put(e.getKey(), String.format("doesn't fit its neighbours (seams %.2f), its blocks fit %d,%d", s, (int) (home >> 32), (int) home));
             else report.lines.add(String.format("chunk %d,%d doesn't fit its neighbours (seams %.2f) -> left as it is (a dig or a build: its blocks fit nowhere else)", x, z, s));
@@ -403,7 +428,7 @@ public final class WorldRepair {
         }
     }
 
-    static long fits_elsewhere(Cand c, long own, Map<Long, Cand> world, int[] n) {
+    static long fits_elsewhere(Cand c, long own, Map<Long, Cand> world, Set<Long> wrecked, int[] n) {
         if (c.masks == null) return Long.MIN_VALUE;
 
         int rx = (int) (own >> 32) >> 5, rz = (int) own >> 5;
@@ -413,6 +438,7 @@ public final class WorldRepair {
             int x = rx * 32 + (i & 31), z = rz * 32 + (i >> 5), cnt = 0;
             long k = key(x, z);
             if (k == own) continue;
+            if (!wrecked.contains(k) && !same_blocks(c, world.get(k))) continue;
             double sum = 0;
             for (int e = 0; e < 4; e++) {
                 long nk = key(x + DX[e], z + DZ[e]);

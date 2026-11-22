@@ -49,17 +49,26 @@ public final class IdFix {
         if (known != null) return known;
         known = new java.util.LinkedHashMap<>();
         if (!host.isEmpty()) return known;
-        for (File f : new File[] { new File(data_dir(), "ids-moved.txt"), known_file() }) {
-            try {
-                if (f.isFile()) for (String l : Files.readAllLines(f.toPath())) {
-                    String[] t = l.trim().split(" ");
-                    if (t.length == 2 && !t[0].startsWith("#")) known.put(t[0], Integer.parseInt(t[1]));
-                }
-            } catch (Exception e) { LOG.warn("couldn't read {}: {}", f, e.toString()); }
-        }
+        for (File f : new File[] { new File(data_dir(), "ids-moved.txt"), known_file() }) read_ids(f, known, true);
         for (Map.Entry<String, Integer> e : known.entrySet()) known_by_id.putIfAbsent(e.getValue(), e.getKey());
         return known;
     }
+
+    static void read_ids(File f, Map<String, Integer> into, boolean over) {
+        if (!f.isFile()) return;
+        java.util.List<String> ls;
+        try { ls = Files.readAllLines(f.toPath(), java.nio.charset.StandardCharsets.UTF_8); }
+        catch (Exception e) { LOG.warn("couldn't read {}: {}", f, e.toString()); unreadable = true; return; }
+        for (String l : ls) {
+            String[] t = l.trim().split(" ");
+            if (t.length != 2 || t[0].startsWith("#")) continue;
+            try {
+                int n = Integer.parseInt(t[1]);
+                if (over) into.put(t[0], n); else into.putIfAbsent(t[0], n);
+            } catch (NumberFormatException ignored) { }
+        }
+    }
+    static boolean unreadable;
 
     static synchronized void remember(String key, int id) {
         if (!host.isEmpty() || Integer.valueOf(id).equals(known().get(key))) return;
@@ -78,8 +87,13 @@ public final class IdFix {
 
     static synchronized void save() {
         saving = false;
+        if (unreadable) return;
+
+        Map<String, Integer> all = new java.util.LinkedHashMap<>(known);
+        read_ids(known_file(), all, false);
+        if (unreadable) return;
         StringBuilder b = new StringBuilder("# every mod block/item id this game has had. keep it: worlds saved the numbers, and a mod that turns up\n# later wanting one of these gets another\n");
-        for (Map.Entry<String, Integer> e : known.entrySet()) b.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
+        for (Map.Entry<String, Integer> e : all.entrySet()) b.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
         try { File f = known_file(); f.getParentFile().mkdirs(); File tmp = new File(f.getPath() + ".part"); Files.write(tmp.toPath(), b.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)); Files.move(tmp.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING); }
         catch (Exception e) { LOG.warn("couldn't save {}: {}", known_file(), e.toString()); }
     }

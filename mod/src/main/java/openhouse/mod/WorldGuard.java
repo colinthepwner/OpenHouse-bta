@@ -355,6 +355,7 @@ public final class WorldGuard {
             if (!new File(world, "level.dat").isFile()) return;
             if (isVisit(worldDirName)) return;
             if (visit_of != null) visit_of = visit_name = null;
+            LocalServer.wait_for_old(worldDirName, s -> progress(mc, s, null, 0));
             synchronized (LOCK) {
                 File checked = new File(world, CHECKED);
                 boolean flagged = new File(world, FLAG).isFile();

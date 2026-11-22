@@ -186,7 +186,7 @@ public final class LocalServer {
                 if (added > 0) OpenHouseMod.LOG.info("gave the server {} file{} from your {} folder{}", added, added == 1 ? "" : "s",
                         String.join(", ", shared), shared.size() == 1 ? "" : "s");
             }
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> stopAndWait(30000), "openhouse local server stop"));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> stopAndWait(30000, false), "openhouse local server stop"));
 
             Map<String, String> crashers = ServerMods.serverCrashers(mods);
             for (Map.Entry<String, String> c : crashers.entrySet())
@@ -355,6 +355,7 @@ public final class LocalServer {
             Process p = pb.start();
             proc = p;
             stdin = p.getOutputStream();
+            mark_running(dir, worldDir, p);
             if (state == State.STARTING && !detail.startsWith("Leaving out")) set(State.STARTING, "Starting the server...");
 
             List<String> lines = new ArrayList<>();
@@ -385,6 +386,7 @@ public final class LocalServer {
                 }
             }
             int exit = p.waitFor();
+            new File(dir, RUNNING).delete();
 
             if (gate.isFile()) {
                 fix.after(username, uuid);
@@ -490,12 +492,12 @@ public final class LocalServer {
     public void stop() {
         if (state == State.STOPPED || state == State.FAILED) return;
         set(State.STOPPING, "Saving the world...");
-        Thread t = new Thread(() -> stopAndWait(60000), "openhouse local server stop");
+        Thread t = new Thread(() -> stopAndWait(60000, true), "openhouse local server stop");
         t.setDaemon(true);
         t.start();
     }
 
-    private void stopAndWait(long ms) {
+    private void stopAndWait(long ms, boolean may_kill) {
         Process p = proc;
         if (p == null || !p.isAlive()) return;
         if (state != State.STOPPING) set(State.STOPPING, "Saving the world...");
@@ -504,8 +506,60 @@ public final class LocalServer {
             if (in != null) { in.write("stop\n".getBytes(StandardCharsets.UTF_8)); in.flush(); }
         } catch (IOException ignored) { }
         try {
-            if (!p.waitFor(ms, java.util.concurrent.TimeUnit.MILLISECONDS)) p.destroyForcibly();
+            if (p.waitFor(ms, java.util.concurrent.TimeUnit.MILLISECONDS) || !may_kill) return;
+            if (!still_going(p.toHandle())) p.destroyForcibly();
         } catch (InterruptedException ignored) { }
+    }
+
+    static final long STUCK_MS = 120_000;
+
+    static boolean still_going(ProcessHandle h) throws InterruptedException {
+        long cpu = -2, since = System.currentTimeMillis();
+        while (h.isAlive()) {
+            long c = h.info().totalCpuDuration().map(java.time.Duration::toMillis).orElse(-1L);
+            if (c != cpu) { cpu = c; since = System.currentTimeMillis(); }
+            else if (System.currentTimeMillis() - since > STUCK_MS) return false;
+            Thread.sleep(250);
+        }
+        return true;
+    }
+
+    static final String RUNNING = "running.txt";
+
+    static void mark_running(File dir, String world, Process p) {
+        long t = p.info().startInstant().map(java.time.Instant::toEpochMilli).orElse(0L);
+        try {
+            java.nio.file.Files.write(new File(dir, RUNNING).toPath(), (world + "\n" + p.pid() + "\n" + t + "\n").getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            OpenHouseMod.LOG.warn("Open to Friends: can't note the server's process ({})", e.toString());
+        }
+    }
+
+    public static void wait_for_old(String world, java.util.function.Consumer<String> say) {
+        File f = new File(new File(OpenHouseMod.dataDir(), "server"), RUNNING);
+        if (!f.isFile()) return;
+        try {
+            List<String> l = java.nio.file.Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
+            if (l.size() < 3 || !l.get(0).equals(world)) return;
+            ProcessHandle h = ProcessHandle.of(Long.parseLong(l.get(1).trim())).orElse(null);
+            long t = Long.parseLong(l.get(2).trim());
+
+            boolean same = h != null && h.isAlive() && (t == 0
+                    ? h.info().command().map(c -> c.toLowerCase().contains("java")).orElse(true)
+                    : Math.abs(h.info().startInstant().map(java.time.Instant::toEpochMilli).orElse(t) - t) < 2000);
+            if (same) {
+                OpenHouseMod.LOG.info("{}'s server from last time is still saving it - waiting for it to finish", world);
+                say.accept("Waiting for the world to finish saving");
+                if (!still_going(h)) {
+                    OpenHouseMod.LOG.warn("{}'s old server stopped doing anything - ending it", world);
+                    h.destroyForcibly();
+                    h.onExit().get(10, java.util.concurrent.TimeUnit.SECONDS);
+                }
+            }
+            f.delete();
+        } catch (Exception e) {
+            OpenHouseMod.LOG.warn("couldn't check for {}'s old server: {}", world, e.toString());
+        }
     }
 
     static File modsFolder() {

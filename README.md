@@ -156,6 +156,8 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 - Your world gets backed up when you leave it, before and after you open it to friends, and once
   a day. The backups are in `openhouse/backups` and on the rewind timeline. If something in a world
   gets broken, OH fixes it the next time you open the world.
+- A mod that's missing for a while doesn't take its blocks, chests and items with it. They stay in
+  your world and come back when the mod does.
 - Mods that only work in the game stay out of your world's server by themselves, and friends get
   your mod settings along with your mods.
 - If a mod crashes your open world, OH tells you which one, and keeps it out of the server next

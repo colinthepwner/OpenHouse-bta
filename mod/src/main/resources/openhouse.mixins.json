@@ -6,7 +6,7 @@
   "injectors": {
     "defaultRequire": 1
   },
-  "mixins": ["NetworkManagerMixin", "PlayerHurtMixin", "ItemIdMixin", "BlockIdMixin"],
+  "mixins": ["NetworkManagerMixin", "PlayerHurtMixin", "ItemIdMixin", "BlockIdMixin", "KeepFixMixin", "KeepChunkMixin", "KeepInventoryMixin"],
   "client": ["E4VoiceQuietMixin", "E4VoiceKeysMixin", 
     "ScreenPagedAccessor",
     "ScreenPagedIconMixin",
