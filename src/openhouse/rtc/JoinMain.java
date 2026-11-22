@@ -56,6 +56,7 @@ public final class JoinMain {
     static volatile String self;
     static volatile String token;
     static boolean relayOnly;
+    static boolean pack;
     static PeerConnectionFactory factory;
     static volatile WsClient signal;
     static volatile boolean signalOpen;
@@ -77,6 +78,7 @@ public final class JoinMain {
         int port = 0;
         for (int k = 1; k < args.length; k++) {
             if (args[k].equals("--relay")) relayOnly = true;
+            else if (args[k].equals("--pack")) pack = true;
             else port = Integer.parseInt(args[k]);
         }
         newIdentity();
@@ -567,7 +569,7 @@ public final class JoinMain {
                                     "serialization", "raw", "reliable", Boolean.TRUE,
 
                                     "oh", mods ? openhouse.Version.VERSION : openhouse.Version.speak_as(host_ver, host_proto),
-                                    "ohp", openhouse.Version.PROTOCOL)));
+                                    "ohp", openhouse.Version.PROTOCOL, "pack", mods ? Boolean.FALSE : (Object) pack)));
                         }
                         public void onFailure(String e) { log("setLocalDescription: " + e); close(); }
                     });

@@ -50,7 +50,7 @@ public final class Locator {
         catch (Throwable t) { return true; }
     }
 
-    public static void draw(Minecraft mc, float pt) {
+    static void draw_tags(Minecraft mc, float pt) {
         if (!active(mc) || mc.thePlayer == null || mc.activeCamera == null) return;
         Player me = mc.thePlayer;
         Player cam_mob = mc.activeCamera instanceof EntityCamera && ((EntityCamera) mc.activeCamera).mob instanceof Player ? (Player) ((EntityCamera) mc.activeCamera).mob : null;
@@ -88,6 +88,25 @@ public final class Locator {
         }
     }
     private static boolean said;
+
+    private static final java.nio.FloatBuffer cam = org.lwjgl.BufferUtils.createFloatBuffer(16);
+    private static boolean cam_set;
+
+    public static void cam_before_clouds() {
+
+        if (!openhouse.gate.Gate.v7()) return;
+        cam.clear();
+        org.lwjgl.opengl.GL11.glGetFloatv(org.lwjgl.opengl.GL11.GL_MODELVIEW_MATRIX, cam);
+        cam_set = true;
+    }
+
+    public static void draw(Minecraft mc, float pt) {
+        if (!cam_set) { draw_tags(mc, pt); return; }
+        cam_set = false;
+        org.lwjgl.opengl.GL11.glPushMatrix();
+        org.lwjgl.opengl.GL11.glLoadMatrixf(cam);
+        try { draw_tags(mc, pt); } finally { org.lwjgl.opengl.GL11.glPopMatrix(); }
+    }
 
     static final long STILL_MS = 1000;
     static final double BIG_FROM = 120, BIG_FULL = 250;
@@ -160,18 +179,20 @@ public final class Locator {
         String name = p.getDisplayName();
         if (name == null || name.isEmpty()) name = p.username;
         int half = font.stringWidth(name) / 2;
+
+        float fa = Math.max(0.35F, Afk.alpha(p));
         GLRenderer.pushFrame();
         GLRenderer.setShader(Shaders.COLOR);
         t.startDrawingQuads();
-        t.setColor4f(0x12 / 255F, 0x10 / 255F, 0x14 / 255F, 0.6F);
+        t.setColor4f(0x12 / 255F, 0x10 / 255F, 0x14 / 255F, 0.6F * fa);
         quad(t, -half - 2, -2, half + 2, 9);
-        rgba(t, col, 1);
+        rgba(t, col, fa);
         quad(t, -half - 2, 9, half + 2, 10);
         if (talking) {
 
-            t.setColor4f(0x12 / 255F, 0x10 / 255F, 0x14 / 255F, 0.6F);
+            t.setColor4f(0x12 / 255F, 0x10 / 255F, 0x14 / 255F, 0.6F * fa);
             quad(t, -half - 13, -2, -half - 3, 9);
-            rgba(t, col, 1);
+            rgba(t, col, fa);
             long now = System.currentTimeMillis();
             for (int b = 0; b < 3; b++) {
                 int h = 2 + (int) (5 * (0.5 + 0.5 * Math.sin(now / 90.0 + b * 2.1 + p.id)));
@@ -180,7 +201,7 @@ public final class Locator {
         }
         t.draw();
         GLRenderer.popFrame();
-        font.render(name, -half, 0).setColor(0xFF000000 | col).call();
+        font.render(name, -half, 0).setColor((int) (255 * fa) << 24 | col).call();
         GLRenderer.popFrame();
     }
 

@@ -45,9 +45,10 @@ public final class VoiceRelay {
 
     public static void install() {
         VoiceWire.server = VoiceRelay::got;
-        VoiceWire.hurt = (p, pitch) -> p instanceof PlayerServer && hurt((PlayerServer) p, pitch);
+        VoiceWire.hurt = (p, pitch, death) -> p instanceof PlayerServer && hurt((PlayerServer) p, pitch, death);
         load_mutes();
         load_locator();
+        AfkServer.load();
     }
 
     static void got(PacketHandler from, byte[] d) {
@@ -56,10 +57,13 @@ public final class VoiceRelay {
         if (srv == null || srv.playerList == null) return;
         if (d[0] == VoiceWire.HURT_SET) { hurt_set(srv, from, d); return; }
         if (d[0] == VoiceWire.HURT_ADD) { hurt_add(srv, from, d); return; }
+        if (d[0] == VoiceWire.DEATH_SET) { death_set(srv, from, d); return; }
+        if (d[0] == VoiceWire.AFK) { AfkServer.got(from, d); return; }
         if (d[0] == VoiceWire.HELLO) {
 
             if (d.length > 1 && d[1] == 0) hello.remove(from); else hello.add(from);
             known.add(from);
+            AfkServer.hello();
             PlayerServer me = find(srv, from);
             if (me != null) {
 
@@ -71,7 +75,8 @@ public final class VoiceRelay {
                 System.arraycopy(cb, 0, h, 3, h.length - 3);
                 send(me, h);
                 send(me, new byte[] { VoiceWire.STATE, state_of(me.username) });
-                send(me, openhouse.mod.MsgKeys.wire(VoiceWire.MSG_KEYS));
+                byte[] keys = openhouse.mod.MsgKeys.wire(VoiceWire.MSG_KEYS);
+                if (keys != null) send(me, keys);
             }
             return;
         }
@@ -107,6 +112,8 @@ public final class VoiceRelay {
             p.playerNetServerHandler.netManager.addToSendQueue(pkt);
         }
     }
+
+    static boolean knows(PacketHandler h) { return h != null && known.contains(h); }
 
     static void send(PlayerServer p, byte[] d) {
         if (p.playerNetServerHandler != null) p.playerNetServerHandler.netManager.addToSendQueue(new PacketCustomPayload(VoiceWire.CHANNEL, d));
@@ -242,6 +249,7 @@ public final class VoiceRelay {
     }
 
     public static void tick() {
+        try { MinecraftServer s = MinecraftServer.getInstance(); if (s != null && s.playerList != null) AfkServer.tick(s); } catch (Throwable ignored) { }
         Heard h;
         while ((h = heard_q.poll()) != null) {
             PlayerServer p = h.who;
@@ -302,25 +310,46 @@ public final class VoiceRelay {
         if (LOG) ServerRoom.LOG.info("[voice] hurt sound #{} from {}: {} bytes", i + 1, me.username, clip.length);
     }
 
-    static boolean hurt(PlayerServer p, float pitch) {
+    private static final Map<String, byte[]> death_clips = new ConcurrentHashMap<>();
+
+    private static void death_set(MinecraftServer srv, PacketHandler from, byte[] d) {
+        PlayerServer me = find(srv, from);
+        if (me == null || me.username == null) return;
+        String k = key(me.username);
+        if (d.length < 2 || d[1] == 0) { death_clips.remove(k); return; }
+        if (d.length - 1 > VoiceWire.CLIP_MAX || VoiceWire.clip_frames(d, 1) == null) return;
+        death_clips.put(k, java.util.Arrays.copyOfRange(d, 1, d.length));
+        if (LOG) ServerRoom.LOG.info("[voice] death sound from {}: {} bytes", me.username, d.length - 1);
+    }
+
+    static boolean hurt(PlayerServer p, float pitch, boolean death) {
         if (!on || p.username == null) return false;
         String k = key(p.username);
         byte[][] all = hurt_clips.get(k);
         int[] hs = hurt_hash.get(k);
-        if (all == null || hs == null) return false;
+        byte[] dc = death ? death_clips.get(k) : null;
+        byte[] clip;
+        int hash;
+        float loud = 1;
+        if (dc != null) { clip = dc; hash = java.util.Arrays.hashCode(dc); }
+        else {
+            if (all == null || hs == null) return false;
 
-        int n = 0;
-        int[] have = new int[all.length];
-        for (int i = 0; i < all.length; i++) if (all[i] != null) have[n++] = i;
-        if (n == 0) return false;
-        int pick = have[java.util.concurrent.ThreadLocalRandom.current().nextInt(n)];
-        byte[] clip = all[pick];
-        int hash = hs[pick];
+            int n = 0;
+            int[] have = new int[all.length];
+            for (int i = 0; i < all.length; i++) if (all[i] != null) have[n++] = i;
+            if (n == 0) return false;
+            int pick = have[java.util.concurrent.ThreadLocalRandom.current().nextInt(n)];
+            clip = all[pick];
+            hash = hs[pick];
+            if (death) loud = VoiceWire.DEATH_LOUDER;
+        }
         MinecraftServer srv = MinecraftServer.getInstance();
         if (srv == null) return false;
         int id = p.id;
         byte[] play = { VoiceWire.HURT_PLAY, (byte) (id >>> 24), (byte) (id >>> 16), (byte) (id >>> 8), (byte) id,
                 (byte) (hash >>> 24), (byte) (hash >>> 16), (byte) (hash >>> 8), (byte) hash, (byte) Math.max(25, Math.min(250, Math.round(pitch * 100))) };
+        if (loud != 1) { play = java.util.Arrays.copyOf(play, 11); play[10] = (byte) Math.min(250, Math.round(loud * 100)); }
         net.minecraft.core.net.packet.Packet vanilla = null;
         double y = p.y - p.heightOffset;
         for (PlayerServer q : players(srv)) {
@@ -328,7 +357,7 @@ public final class VoiceRelay {
             double dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
             if (dx * dx + dy * dy + dz * dz > 16 * 16) continue;
             PacketHandler h = q.playerNetServerHandler;
-            if (LOG) ServerRoom.LOG.info("[voice] {} hurt: to {} as {}", p.username, q.username, hurt_ok.contains(h) ? "clip" : "plain sound");
+            if (LOG) ServerRoom.LOG.info("[voice] {} {}: to {} as {}", p.username, dc != null ? "died (death sound)" : death ? "died (hurt x" + loud + ")" : "hurt", q.username, hurt_ok.contains(h) ? "clip" : "plain sound");
             if (hurt_ok.contains(h)) {
                 Map<Integer, Integer> got = hurt_sent.computeIfAbsent(h, x -> new ConcurrentHashMap<>());
                 Integer had = got.put(id, hash);

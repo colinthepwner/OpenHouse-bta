@@ -31,9 +31,17 @@ public final class HurtClip {
     static volatile byte[][] more = new byte[0][];
     static volatile int version;
 
+    static volatile byte[] death;
+    private static File death_file() { return new File(openhouse.mod.OpenHouseMod.dataDir(), "death-sound.clip"); }
+    public static boolean has_death() { return death != null; }
+
     private static File file(int i) { return new File(openhouse.mod.OpenHouseMod.dataDir(), i == 0 ? "hurt-sound.clip" : "hurt-sound-" + (i + 1) + ".clip"); }
 
     static void load() {
+        try {
+            File df = death_file();
+            if (df.isFile()) { byte[] d = Files.readAllBytes(df.toPath()); if (VoiceWire.clip_frames(d, 0) != null) { death = d; version++; } }
+        } catch (Throwable ignored) { }
         try {
             File f = file(0);
             if (!f.isFile()) return;
@@ -164,6 +172,29 @@ public final class HurtClip {
     public static void from_files(List<File> fs) throws Exception {
         List<short[]> got = new ArrayList<>();
         String why = null;
+
+        List<File> hurt = new ArrayList<>();
+        int n_all = fs.size();
+        for (File f : fs) {
+            String nm = f.getName().toLowerCase(java.util.Locale.ROOT);
+            if (!(nm.startsWith("death.") && nm.indexOf('.') == nm.lastIndexOf('.'))) { hurt.add(f); continue; }
+            said = null;
+            short[] pcm;
+            try { pcm = from_file(f); } catch (Exception e) {
+                openhouse.mod.OpenHouseMod.LOG.info("[voice] death sound file {}: {}", f.getName(), e.toString());
+                pcm = null;
+                said = "gui.openhouse.hurt.badfile";
+            }
+            byte[] c = pcm == null ? null : encode(pcm);
+            if (c != null) {
+                set_death(c);
+                VoiceCfg.hurt_custom = true;
+                VoiceCfg.save();
+                if (hurt.isEmpty() && fs.size() == 1) preview(pcm);
+            }
+            if (said != null) why = said;
+        }
+        fs = hurt;
         for (int i = 0; i < fs.size() && i < VoiceWire.HURT_MAX; i++) {
             said = null;
             short[] pcm;
@@ -177,6 +208,8 @@ public final class HurtClip {
             if (said != null) why = said;
         }
         if (fs.size() > VoiceWire.HURT_MAX && why == null) why = "gui.openhouse.hurt.only3";
+
+        if (!got.isEmpty() && fs.size() == n_all && death != null) set_death(null);
         if (!got.isEmpty()) keep(got);
         if (why != null) said = why;
     }
@@ -485,6 +518,35 @@ public final class HurtClip {
         return pcm;
     }
 
+    static void set_death(byte[] c) {
+        death = c;
+        version++;
+        try {
+            File d = openhouse.mod.OpenHouseMod.dataDir(); d.mkdirs();
+            if (c != null) Files.write(death_file().toPath(), c); else Files.deleteIfExists(death_file().toPath());
+        } catch (Throwable ignored) { }
+    }
+
+    private static final Map<short[], short[]> louder = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+    static short[] louder(short[] pcm, float by) {
+        if (by <= 1.001F) return pcm;
+        return louder.computeIfAbsent(pcm, p -> {
+            int pk = 1;
+            for (short s : p) pk = Math.max(pk, Math.abs(s));
+            float g = Math.min(by, 32000F / pk);
+            short[] o = new short[p.length];
+            for (int i = 0; i < p.length; i++) o[i] = (short) Math.round(p[i] * g);
+            return o;
+        });
+    }
+
+    static short[] mine_death_pcm() {
+        byte[] d = death;
+        if (d != null) { short[] p = decode(d, 0); if (p != null) return p; }
+        short[] h = mine_pcm();
+        return h == null ? null : louder(h, VoiceWire.DEATH_LOUDER);
+    }
+
     static void keep(List<short[]> pcms) throws Exception {
         List<byte[]> cs = new ArrayList<>();
         for (short[] pcm : pcms) { byte[] c = encode(pcm); if (c != null) cs.add(c); }
@@ -605,7 +667,8 @@ public final class HurtClip {
         int id = i32(d, 1);
         Theirs t = theirs.get(id);
         if (t == null || t.hash != i32(d, 5)) return;
-        plays.add(new float[] { id, (d[9] & 0xFF) / 100F });
+
+        plays.add(new float[] { id, (d[9] & 0xFF) / 100F, d.length > 10 ? (d[10] & 0xFF) / 100F : 1 });
     }
 
     static short[] pcm_of(int id) { Theirs t = theirs.get(id); return t == null ? null : t.pcm; }

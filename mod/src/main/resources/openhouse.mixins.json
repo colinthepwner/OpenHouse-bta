@@ -1,15 +1,17 @@
 {
   "required": true,
   "package": "openhouse.mod.mixin",
+  "plugin": "openhouse.gate.Mixins",
   "compatibilityLevel": "JAVA_${java}",
   "injectors": {
     "defaultRequire": 1
   },
-  "mixins": ["NetworkManagerMixin", "PlayerHurtMixin"],
+  "mixins": ["NetworkManagerMixin", "PlayerHurtMixin", "ItemIdMixin", "BlockIdMixin"],
   "client": ["E4VoiceQuietMixin", "E4VoiceKeysMixin", 
     "ScreenPagedAccessor",
     "ScreenPagedIconMixin",
     "ScreenSelectServerMixin",
+    "ScreenSelectServerRoomMixin",
     "ServerEntryComponentMixin",
     "ServerListenerThreadMixin",
     "WorldRendererMixin",
@@ -21,6 +23,7 @@
     "ScreenConnectingMixin",
     "ServerManagerMixin",
     "MobRendererPlayerMixin",
+    "MobRendererAfkMixin",
     "GetSkinUrlThreadMixin",
     "PacketHandlerClientMixin",
     "MobSmoothMixin",
@@ -49,6 +52,8 @@
     "server.MulticastMixin",
     "server.VoiceTickMixin",
     "server.MobTrackMixin",
-    "server.MobLookMixin"
+    "server.MobLookMixin",
+    "server.MobTargetAfkMixin",
+    "server.MobPathfinderInvoker"
   ]
 }

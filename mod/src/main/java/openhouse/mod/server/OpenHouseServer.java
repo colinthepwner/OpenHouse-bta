@@ -12,6 +12,7 @@ import net.minecraft.core.net.command.CommandManager;
 public final class OpenHouseServer implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
+        openhouse.mod.ModWrap.register();
         CommandManager.registerServerCommand(new RoomCommand());
         CommandManager.registerServerCommand(new VoiceCommand());
 

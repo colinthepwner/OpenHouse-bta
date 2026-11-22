@@ -11,6 +11,9 @@ public final class VoiceVolumeOption extends OptionFloat {
     }
 
     @Override
+    public String getDisplayStringValue() { return value <= 0 ? net.minecraft.core.lang.I18n.getInstance().translateKey("options.off") : Math.round(value * 200) + "%"; }
+
+    @Override
     public void onUpdate() {
         super.onUpdate();
         VoiceCfg.vol = Math.max(0, Math.min(2, value * 2));

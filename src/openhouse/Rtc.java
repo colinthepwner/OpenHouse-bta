@@ -105,6 +105,37 @@ public final class Rtc {
         return fetchPinned(dir, BTA_SERVER_URL, "bta-server-" + BTA_SERVER_VERSION + ".jar", BTA_SERVER_SHA256, "the BTA server", status);
     }
 
+    static final String BTA_CLIENT_URL = "https://downloads.betterthanadventure.net/bta-client/release/v8.0.1/client.jar";
+    static final String BTA_CLIENT_SHA256 = "389f042bfd5c02f2bb282303a679a2371e6d6d8c80c6d7afec0a9f48c749b982";
+
+    public static String btaClientUrl() { return BTA_CLIENT_URL; }
+    public static String btaServerUrl() { return BTA_SERVER_URL; }
+    public static File btaClientIfThere(File dir) { return there(dir, "bta-client-" + BTA_SERVER_VERSION + ".jar", BTA_CLIENT_SHA256); }
+    public static File btaServerIfThere(File dir) { return there(dir, "bta-server-" + BTA_SERVER_VERSION + ".jar", BTA_SERVER_SHA256); }
+    static File there(File dir, String name, String want) {
+        File f = new File(dir, name);
+        try { return f.isFile() && want.equals(sha256(f)) ? f : null; } catch (IOException e) { return null; }
+    }
+
+    public static File btaClient(File dir, Consumer<String> status) throws IOException {
+        return fetchPinned(dir, BTA_CLIENT_URL, "bta-client-" + BTA_SERVER_VERSION + ".jar", BTA_CLIENT_SHA256, "BTA " + BTA_SERVER_VERSION, status);
+    }
+
+    static final String[][] BTA_SERVERS = {
+        { BTA_SERVER_VERSION, BTA_SERVER_URL, BTA_SERVER_SHA256 },
+        { "7.3_04", "https://downloads.betterthanadventure.net/bta-server/release/v7.3_04/server.jar", "7bc8509b735e8dc952a3c20d1ad9fb4f1132137fe506ad42cfb751b037dcc767" },
+    };
+
+    public static boolean hasServer(String version) {
+        for (String[] s : BTA_SERVERS) if (s[0].equals(version)) return true;
+        return false;
+    }
+
+    public static File btaServer(File dir, String version, Consumer<String> status) throws IOException {
+        for (String[] s : BTA_SERVERS) if (s[0].equals(version)) return fetchPinned(dir, s[1], "bta-server-" + s[0] + ".jar", s[2], "the BTA server", status);
+        throw new IOException("no BTA server known for " + version);
+    }
+
     public static String adoptBtaServer(File dir, File folder, File skip) {
         File target = new File(dir, "bta-server-" + BTA_SERVER_VERSION + ".jar");
         if (target.isFile()) return null;
@@ -294,6 +325,9 @@ public final class Rtc {
         List<String> cmd = new ArrayList<>();
         cmd.add(java);
         cmd.add("-Xmx128m");
+
+        cmd.add("-XX:+IgnoreUnrecognizedVMOptions");
+        cmd.add("-XX:TieredStopAtLevel=1");
 
         if (javaMajor() >= 17) cmd.add("--enable-native-access=ALL-UNNAMED");
 

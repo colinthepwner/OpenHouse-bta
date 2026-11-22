@@ -35,7 +35,7 @@ public final class OpenHost {
         File self = Rtc.self();
         File here = serverFolder(self, args);
         File data = new File(here, "openhouse");
-        say("OpenHost " + Version.VERSION + ": a Better than Adventure " + Rtc.BTA_SERVER_VERSION + " server that players join by room code");
+        say("OpenHost " + Version.VERSION + ": a Better than Adventure server that players join by room code");
         say("Server folder: " + here);
         removeUpdateCopy(self);
         if (!noUpdate && System.getenv("OPENHOUSE_UPDATED") == null && selfUpdate(self, data, here, args)) return;
@@ -540,8 +540,8 @@ public final class OpenHost {
 
         int format = worldFormat(new File(world, "level.dat"));
         if (format > WORLD_FORMAT) {
-            tell("The world \"" + worldName + "\" was made by a newer Better than Adventure than " + Rtc.BTA_SERVER_VERSION
-                    + " (save format " + format + "), which OpenHost runs, so it can't open it.\n\nUse a newer OpenHost, or another world (level-name in server.properties).");
+            tell("The world \"" + worldName + "\" was made by a newer Better than Adventure than OpenHost runs"
+                    + " (save format " + format + "), so it can't open it.\n\nUse a newer OpenHost, or another world (level-name in server.properties).");
             return false;
         }
         if (format > 0 && format < WORLD_FORMAT) return convertOlderWorld(here, world, worldName, format, props);
@@ -551,7 +551,7 @@ public final class OpenHost {
     static boolean convertOlderWorld(File here, File world, String worldName, int format, java.util.Properties props) {
         File copy = new File(world.getParentFile(), world.getName() + "-before-bta-" + Rtc.BTA_SERVER_VERSION);
         String what = "The world \"" + worldName + "\" was made by an older Better than Adventure (save format " + format + ").\n\n"
-                + "OpenHost runs BTA " + Rtc.BTA_SERVER_VERSION + ", which converts the world when it opens it. After that, the older\n"
+                + "OpenHost converts the world when it opens it. After that, the older\n"
                 + "server can't open it any more. OpenHost keeps a copy of it as it is now, in \"" + copy.getName() + "\".";
 
         boolean go = "true".equalsIgnoreCase(props.getProperty(CONVERT_KEY, "").trim()) || copy.exists();
@@ -569,7 +569,7 @@ public final class OpenHost {
             return false;
         }
         if (!copy.exists()) {
-            say("Copying the world as it is to " + copy.getName() + " before BTA " + Rtc.BTA_SERVER_VERSION + " converts it...");
+            say("Copying the world as it is to " + copy.getName() + " before converting it...");
             try {
                 copyTree(world.toPath(), copy.toPath());
             } catch (IOException e) {

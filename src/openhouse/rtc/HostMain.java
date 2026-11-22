@@ -67,6 +67,27 @@ public final class HostMain {
     static final Map<String, java.io.File> shareFiles = new ConcurrentHashMap<>();
     static final String MODS_LABEL = "openhouse-mods";
 
+    static volatile openhouse.bridge.Bridge.HostInfo bridge_info;
+    static volatile int server_proto;
+    static volatile boolean bridge_off;
+
+    static openhouse.bridge.Bridge.HostInfo read_info(java.io.File f) {
+        try {
+            return openhouse.bridge.Bridge.HostInfo.parse(java.nio.file.Files.readAllLines(f.toPath(), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            log("can't read " + f + ": " + e);
+            return null;
+        }
+    }
+
+    static int server_proto() {
+        int p = server_proto;
+        if (p != 0) return p;
+        p = openhouse.bridge.Bridge.probe(targetHost, targetPort, 3000);
+        if (p != 0) { server_proto = p; debug("the server is BTA " + openhouse.bridge.Bridge.name(p)); }
+        return p;
+    }
+
     static void loadShare(java.io.File manifest) {
         try {
             String text = new String(java.nio.file.Files.readAllBytes(manifest.toPath()), java.nio.charset.StandardCharsets.UTF_8);
@@ -104,6 +125,9 @@ public final class HostMain {
                 log("players may add to this server's " + String.join(", ", fs) + " folder" + (fs.size() == 1 ? "" : "s"));
             }
         }
+
+        if (args.length > 5 && args[5].equals("off")) { bridge_off = true; log("players on other BTA versions: off (version-bridge=off)"); }
+        else if (args.length > 5 && !args[5].isEmpty()) bridge_info = read_info(new java.io.File(args[5]));
 
         Thread watch = new Thread(() -> {
             try { while (System.in.read() >= 0) { } } catch (IOException ignored) { }
@@ -214,6 +238,7 @@ public final class HostMain {
             Peer old = peers.remove(cid);
             if (old != null) old.close();
             Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))), Json.str(payload.get("oh")), payload.get("ohp"));
+            p.pack = Boolean.TRUE.equals(payload.get("pack"));
             p.web = !src.startsWith(JOINER_PREFIX);
             peers.put(cid, p);
             p.offer(Json.str(sdp.get("sdp")));
@@ -248,6 +273,7 @@ public final class HostMain {
         final String remote, cid;
         final boolean mods;
         final String theirVersion;
+        volatile boolean pack;
         final Object their_proto;
 
         volatile boolean web;
@@ -374,7 +400,11 @@ public final class HostMain {
 
                         String as = openhouse.Version.speak_as(theirVersion, their_proto);
                         String none = "{\"mods\":[],\"openhouse\":\"" + as + "\",\"ohp\":" + openhouse.Version.PROTOCOL + "}";
-                        sendText(shareJson == null || theirVersion == null ? none : as.equals(openhouse.Version.VERSION) ? shareJson : share_as(as));
+                        String list = shareJson == null || theirVersion == null ? none : as.equals(openhouse.Version.VERSION) ? shareJson : share_as(as);
+
+                        int bta = bridge_off ? 0 : server_proto();
+                        if (bta != 0 && list.startsWith("{")) list = "{\"bta\":" + bta + "," + list.substring(1);
+                        sendText(list);
                     } else if (cmd.startsWith("GET ")) {
                         String sha = cmd.substring(4).trim();
                         java.io.File f = shareFiles.get(sha);
@@ -517,18 +547,17 @@ public final class HostMain {
                 if (web) synchronized (System.out) { System.out.println("WEB " + s.getLocalPort()); System.out.flush(); }
                 players();
 
+                final openhouse.bridge.Bridge br = new openhouse.bridge.Bridge(bridge_off ? 0 : server_proto(), bridge_info, HostMain::log);
+                br.cli_pack = pack;
+                if (pack) log("player runs this room's own mods");
                 Thread up = new Thread(() -> {
                     try {
                         OutputStream out = s.getOutputStream();
-                        while (true) {
-                            byte[] b = toServer.take();
-                            if (b.length == 0) break;
-                            out.write(b);
-                            if (toServer.isEmpty()) out.flush();
-                        }
+                        br.up(new QueueIn(toServer), out);
                         out.flush();
                         serverDone.await(UP_LINGER_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
-                    } catch (Exception ignored) {
+                    } catch (Exception e) {
+                        if (br.bridging() && !closed) log("player connection ended (bridge): " + e.getMessage());
                     } finally {
                         try { s.close(); } catch (IOException ignored) { }
                         close();
@@ -538,29 +567,15 @@ public final class HostMain {
                 upThread = up;
                 up.start();
 
-                InputStream in = s.getInputStream();
-                byte[] buf = new byte[16384];
-                int n;
-                boolean sending = true;
-                while ((n = in.read(buf)) > 0) {
-                    if (!sending || closed) continue;
-                    RTCDataChannel ch = dc;
-                    if (ch == null) { sending = false; close(); continue; }
-                    try {
-                        while (!closed && ch.getBufferedAmount() > GAME_BUFFERED) Thread.sleep(5);
-                        if (!closed) ch.send(new RTCDataChannelBuffer(ByteBuffer.wrap(Arrays.copyOf(buf, n)), true));
-                    } catch (Exception e) {
+                try {
+                    br.down(s.getInputStream(), new DcOut());
+                } catch (IOException e) {
+                    if (br.bridging() && !closed) log("player connection ended (bridge): " + e.getMessage());
+                    close();
 
-                        sending = false;
-                        if (!closed) {
-                            boolean gone;
-                            try { gone = ch.getState() != RTCDataChannelState.OPEN; }
-                            catch (Throwable t) { gone = true; }
-                            if (gone) debug(cid + " channel closed by the joiner while the server was sending (" + e.getMessage() + ")");
-                            else log("player connection ended: " + e.getMessage());
-                        }
-                        close();
-                    }
+                    InputStream in = s.getInputStream();
+                    byte[] buf = new byte[16384];
+                    while (in.read(buf) > 0) { }
                 }
             } catch (Exception e) {
 
@@ -568,6 +583,66 @@ public final class HostMain {
             } finally {
                 serverDone.countDown();
                 close();
+            }
+        }
+
+        static final class QueueIn extends InputStream {
+            final BlockingQueue<byte[]> q;
+            byte[] cur;
+            int at;
+            boolean eof;
+            QueueIn(BlockingQueue<byte[]> q) { this.q = q; }
+            boolean fill() throws IOException {
+                while (!eof && (cur == null || at >= cur.length)) {
+                    try { cur = q.take(); } catch (InterruptedException e) { throw new IOException(e); }
+                    at = 0;
+                    if (cur.length == 0) eof = true;
+                }
+                return !eof;
+            }
+            @Override public int read() throws IOException { return fill() ? cur[at++] & 255 : -1; }
+            @Override public int read(byte[] b, int off, int len) throws IOException {
+                if (len == 0) return 0;
+                if (!fill()) return -1;
+                int n = Math.min(len, cur.length - at);
+                System.arraycopy(cur, at, b, off, n);
+                at += n;
+                return n;
+            }
+
+            @Override public int available() { return (cur != null && at < cur.length ? cur.length - at : 0) + (q.isEmpty() ? 0 : 1); }
+        }
+
+        final class DcOut extends OutputStream {
+            boolean sending = true;
+            @Override public void write(int b) { write(new byte[] { (byte) b }, 0, 1); }
+            @Override public void write(byte[] b, int off, int len) {
+                while (len > 0) {
+                    int n = Math.min(len, 16384);
+                    send_part(Arrays.copyOfRange(b, off, off + n));
+                    off += n;
+                    len -= n;
+                }
+            }
+            void send_part(byte[] part) {
+                if (!sending || closed) return;
+                RTCDataChannel ch = dc;
+                if (ch == null) { sending = false; Peer.this.close(); return; }
+                try {
+                    while (!closed && ch.getBufferedAmount() > GAME_BUFFERED) Thread.sleep(5);
+                    if (!closed) ch.send(new RTCDataChannelBuffer(ByteBuffer.wrap(part), true));
+                } catch (Exception e) {
+
+                    sending = false;
+                    if (!closed) {
+                        boolean gone;
+                        try { gone = ch.getState() != RTCDataChannelState.OPEN; }
+                        catch (Throwable t) { gone = true; }
+                        if (gone) debug(cid + " channel closed by the joiner while the server was sending (" + e.getMessage() + ")");
+                        else log("player connection ended: " + e.getMessage());
+                    }
+                    Peer.this.close();
+                }
             }
         }
 

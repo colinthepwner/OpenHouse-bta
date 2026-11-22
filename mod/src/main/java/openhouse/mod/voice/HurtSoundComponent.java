@@ -19,14 +19,22 @@ public class HurtSoundComponent extends ToggleableOptionComponent<String> {
         @Override public void fromOptionsString(@NotNull String s) { }
         @Override public boolean isSlider() { return true; }
         @NotNull @Override public String getDisplayString() { return I18n.getInstance().translateKey("options.player.hurtsound." + value); }
+
+        @NotNull @Override public String getDisplayStringValue() { return getDisplayString(); }
     }
 
     private static String[] values() {
+
+        if (!has_choice()) return new String[] { "default", "custom" };
         Player.PlayerConfig.HurtSound[] hs = Player.PlayerConfig.HurtSound.values();
         String[] v = new String[hs.length + 1];
         for (int i = 0; i < hs.length; i++) v[i] = hs[i].key;
         v[hs.length] = "custom";
         return v;
+    }
+
+    static boolean has_choice() {
+        try { return GameSettings.PLAYER_HURT_SOUND != null; } catch (Throwable t) { return false; }
     }
 
     private final ButtonElement micb = new ButtonElement(0, 0, 0, 20, 20, "");
@@ -40,16 +48,17 @@ public class HurtSoundComponent extends ToggleableOptionComponent<String> {
         sync();
     }
 
-    private static int count() { return GameSettings.PLAYER_HURT_SOUND.size(); }
+    private static int count() { return has_choice() ? GameSettings.PLAYER_HURT_SOUND.size() : 1; }
+    private static int index() { return has_choice() ? GameSettings.PLAYER_HURT_SOUND.getValueIndex() : 0; }
 
-    private void sync() { option.setValueWithIndex(VoiceCfg.hurt_custom ? count() : GameSettings.PLAYER_HURT_SOUND.getValueIndex()); }
+    private void sync() { option.setValueWithIndex(VoiceCfg.hurt_custom ? count() : index()); }
 
     private void apply() {
         int i = option.getValueIndex(), n = count();
         boolean custom = i >= n;
         if (custom != VoiceCfg.hurt_custom) { VoiceCfg.hurt_custom = custom; VoiceCfg.save(); }
         if (custom) HurtClip.neutral_under();
-        else if (GameSettings.PLAYER_HURT_SOUND.getValueIndex() != i) {
+        else if (has_choice() && GameSettings.PLAYER_HURT_SOUND.getValueIndex() != i) {
             GameSettings.PLAYER_HURT_SOUND.setValueWithIndex(i);
             GameSettings.PLAYER_HURT_SOUND.onUpdate();
         }
@@ -70,10 +79,14 @@ public class HurtSoundComponent extends ToggleableOptionComponent<String> {
     }
 
     @Override
-    public void resetValue() { VoiceCfg.hurt_custom = false; VoiceCfg.save(); GameSettings.PLAYER_HURT_SOUND.set(GameSettings.PLAYER_HURT_SOUND.getDefaultValue()); GameSettings.PLAYER_HURT_SOUND.onUpdate(); sync(); onChanged(); }
+    public void resetValue() {
+        VoiceCfg.hurt_custom = false; VoiceCfg.save();
+        if (has_choice()) { GameSettings.PLAYER_HURT_SOUND.set(GameSettings.PLAYER_HURT_SOUND.getDefaultValue()); GameSettings.PLAYER_HURT_SOUND.onUpdate(); }
+        sync(); onChanged();
+    }
 
     @Override
-    public boolean isDefault() { return !VoiceCfg.hurt_custom && GameSettings.PLAYER_HURT_SOUND.value == GameSettings.PLAYER_HURT_SOUND.getDefaultValue(); }
+    public boolean isDefault() { return !VoiceCfg.hurt_custom && (!has_choice() || GameSettings.PLAYER_HURT_SOUND.value == GameSettings.PLAYER_HURT_SOUND.getDefaultValue()); }
 
     @Override
     public String getTooltipTranslationKey() { return over_mic ? "gui.openhouse.hurt.tip" : null; }
@@ -81,7 +94,7 @@ public class HurtSoundComponent extends ToggleableOptionComponent<String> {
     @Override
     public void render(@NotNull ScreenOptions so, int x, int y, int width, int rmx, int rmy) {
 
-        int want = VoiceCfg.hurt_custom ? count() : GameSettings.PLAYER_HURT_SOUND.getValueIndex();
+        int want = VoiceCfg.hurt_custom ? count() : index();
         if (!slider.dragging && option.getValueIndex() != want) { option.setValueWithIndex(want); slider.sliderValue = want; onChanged(); }
         String name = I18n.getInstance().translateKey("options.player.hurtsound");
         boolean row = rmx >= 0 && rmx <= width && rmy >= 2 && rmy <= getHeight() - 2;

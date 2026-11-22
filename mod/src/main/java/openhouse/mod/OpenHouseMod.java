@@ -126,11 +126,37 @@ public final class OpenHouseMod implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        ModWrap.register();
 
         TextureRegistry.excludedNamespaces.add(MOD_ID);
         Registries.NAMESPACES.register(MOD_ID, MOD_ID);
         typed = settings().getProperty("lastCode", "");
         openhouse.mod.voice.Voice.init();
+        Firewall.check();
+    }
+
+    private static int protocol;
+    public static int protocol() {
+        int p = protocol;
+        if (p == 0) {
+            try { p = net.minecraft.core.Global.class.getField("MP_PROTOCOL_VERSION").getInt(null); } catch (Throwable t) { p = -1; }
+            protocol = p;
+        }
+        return p;
+    }
+
+    static String setting(String k, String dflt) { return settings().getProperty(k, dflt).trim(); }
+
+    static void put_setting(String k, String v) {
+        Properties p = settings();
+        p.setProperty(k, v);
+        File d = dataDir();
+        d.mkdirs();
+        try (FileOutputStream out = new FileOutputStream(new File(d, "openhouse.properties"))) {
+            p.store(out, "OpenHouse");
+        } catch (Exception e) {
+            LOG.warn("can't save {}: {}", k, e.toString());
+        }
     }
 
     public static String worldFolder(Minecraft mc) {
@@ -155,6 +181,7 @@ public final class OpenHouseMod implements ClientModInitializer {
         }
         if (joiner != null) joiner.stop();
         joiner = new Joiner(dataDir(), code, s -> LOG.info("[room {}] {}", code, s));
+        joiner.pack = PACK.equals(code);
         joiner.start();
         return joiner;
     }

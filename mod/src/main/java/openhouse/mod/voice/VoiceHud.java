@@ -19,6 +19,8 @@ public final class VoiceHud {
     private static long shown_at;
 
     public static void draw(Gui g, Minecraft mc, int w, int h) {
+
+        if (!net.minecraft.client.option.GameSettings.IMMERSIVE_MODE.drawOverlays()) return;
         if (!Voice.active() || !someone_here(mc)) return;
         FontRenderer font = mc.font;
         I18n t = I18n.getInstance();

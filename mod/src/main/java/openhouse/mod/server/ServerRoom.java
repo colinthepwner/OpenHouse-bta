@@ -205,6 +205,7 @@ public final class ServerRoom {
 
         String h = ip.isEmpty() || ip.equals("0.0.0.0") || ip.equals("::") ? "127.0.0.1" : ip;
         target = address.isEmpty() ? h + ":" + port : address;
+        LanAnnounce.start_if_needed(server, port);
         save();
         if (!enabled) {
             LOG.info("Room codes are off ({} or /oh on)", file.getPath());
@@ -336,7 +337,105 @@ public final class ServerRoom {
         self[0] = h;
         host = h;
         h.pool(FabricLoader.getInstance().getGameDir().toFile(), shareFolders);
+        if (bridge) h.bridge_info(bridge_info()); else h.bridge_off();
         h.start();
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void names_of(StringBuilder b, String tag, net.minecraft.core.data.registry.Registry r) {
+        try {
+            for (Object o : r) {
+                String k = r.getKey(o);
+                if (k == null) continue;
+                b.append(tag).append('\t').append(r.getNumericIdOfItem(o)).append('\t').append(k.startsWith("minecraft:") ? k.substring(10) : k).append('\n');
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    private java.io.File bridge_info() {
+        try {
+            java.io.File f = new java.io.File(dataDir, "bridge-info.txt");
+            StringBuilder b = new StringBuilder();
+            net.minecraft.core.lang.I18n i18n = net.minecraft.core.lang.I18n.getInstance();
+
+            try {
+                for (String k : net.minecraft.core.net.packet.PacketMessageTranslatable.ID2KEY_MAP)
+                    b.append("M\t").append(k).append('\t').append(i18n.translateKey(k).replace('\n', ' ').replace('\t', ' ')).append('\n');
+            } catch (Throwable ignored) { }
+
+            names_of(b, "W", net.minecraft.core.data.registry.Registries.WORLD_TYPES);
+            names_of(b, "G", net.minecraft.core.data.registry.Registries.BIOMES);
+
+            for (net.minecraft.core.block.Block<?> bl : net.minecraft.core.block.Blocks.blocksList) {
+                if (bl == null) continue;
+                String kind;
+                int rgb = 0x808080;
+                double h = 1;
+                try {
+                    kind = block_kind(bl);
+                    rgb = net.minecraft.core.block.material.MaterialColor.getColorFromIndex(net.minecraft.core.block.material.MaterialColor.getColorIndexFromBlock(bl, 0));
+                    h = bl.getLogic().getBoundsRaw().maxY - bl.getLogic().getBoundsRaw().minY;
+                } catch (Throwable t) { kind = "cube"; }
+                b.append("B\t").append(bl.id()).append('\t').append(bl.namespaceId()).append('\t').append(kind).append('\t')
+                        .append(Integer.toHexString(rgb & 0xffffff)).append('\t').append(net.minecraft.core.block.Blocks.lightEmission[bl.id()])
+                        .append('\t').append(String.format(java.util.Locale.ROOT, "%.3f", h)).append('\t').append(name_of(i18n, bl.getLanguageKey(0))).append('\n');
+            }
+            for (net.minecraft.core.item.Item it : net.minecraft.core.item.Item.itemsList) {
+                if (it == null || it.id < 16384) continue;
+                String n;
+                try { n = it.getTranslatedName(new net.minecraft.core.item.ItemStack(it)); } catch (Throwable t) { n = ""; }
+                b.append("I\t").append(it.id).append('\t').append(it.namespaceID).append('\t').append(item_kind(it)).append('\t').append(clean(n)).append('\n');
+            }
+            java.nio.file.Files.write(f.toPath(), b.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return f;
+        } catch (Throwable t) {
+            LOG.warn("couldn't write the chat lines for players on other BTA versions: {}", t.toString());
+            return null;
+        }
+    }
+
+    static String name_of(net.minecraft.core.lang.I18n i18n, String key) {
+        try {
+            String k = key.endsWith(".name") ? key : key + ".name";
+            String n = i18n.translateKey(k);
+            return n == null || n.equals(k) ? "" : clean(n);
+        } catch (Throwable t) { return ""; }
+    }
+    static String clean(String n) { return n == null ? "" : n.replace('\t', ' ').replace('\n', ' ').trim(); }
+
+    static String block_kind(net.minecraft.core.block.Block<?> bl) {
+        Object l = bl.getLogic();
+        if (l instanceof net.minecraft.core.block.BlockLogicFluid)
+            return bl.getMaterial() == net.minecraft.core.block.material.Materials.LAVA ? "lava" : "water";
+        if (l instanceof net.minecraft.core.block.BlockLogicSlab) return "slab";
+        if (l instanceof net.minecraft.core.block.BlockLogicStairs) return "stairs";
+        if (l instanceof net.minecraft.core.block.BlockLogicFenceGate) return "gate";
+        if (l instanceof net.minecraft.core.block.BlockLogicFence || l instanceof net.minecraft.core.block.BlockLogicFenceThin) return "fence";
+        if (l instanceof net.minecraft.core.block.BlockLogicTorch) return "torch";
+        if (l instanceof net.minecraft.core.block.BlockLogicFlower) return "plant";
+        if (l instanceof net.minecraft.core.block.BlockLogicLayerBase) return "layer";
+        if (l instanceof net.minecraft.core.block.BlockLogicDoor) return "door";
+        if (l instanceof net.minecraft.core.block.BlockLogicTrapDoor) return "trapdoor";
+        if (l instanceof net.minecraft.core.block.BlockLogicLadder) return "ladder";
+        if (l instanceof net.minecraft.core.block.BlockLogicButton) return "button";
+        if (l instanceof net.minecraft.core.block.BlockLogicPressurePlate) return "plate";
+        if (l instanceof net.minecraft.core.block.BlockLogicChest) return "chest";
+        if (l instanceof net.minecraft.core.block.BlockLogicLeavesBase) return "leaves";
+        if (l instanceof net.minecraft.core.block.BlockLogicFire) return "fire";
+        if (l instanceof net.minecraft.core.block.BlockLogicTransparent) return "glass";
+        return bl.getLogic().isCubeShaped() ? "cube" : "other";
+    }
+
+    static String item_kind(net.minecraft.core.item.Item it) {
+        if (it instanceof net.minecraft.core.item.tool.ItemToolPickaxe) return "pickaxe";
+        if (it instanceof net.minecraft.core.item.tool.ItemToolAxe) return "axe";
+        if (it instanceof net.minecraft.core.item.tool.ItemToolShovel) return "shovel";
+        if (it instanceof net.minecraft.core.item.tool.ItemToolSword) return "sword";
+        if (it instanceof net.minecraft.core.item.tool.ItemToolHoe) return "hoe";
+        if (it instanceof net.minecraft.core.item.ItemFood) return "food";
+        if (it instanceof net.minecraft.core.item.ItemBow) return "bow";
+        if (it instanceof net.minecraft.core.item.ItemArmor) return "armor";
+        return "item";
     }
 
     volatile String takenCode;
@@ -403,6 +502,15 @@ public final class ServerRoom {
             if (cfg != null) mods.add(openhouse.ModShare.extra(cfg, "openhouse:config", "the server's mod settings"));
             java.io.File table = uselessNumericalTable();
             if (table != null) mods.add(openhouse.ModShare.extra(table, "openhouse:uselessnumerical", "the world's id table"));
+
+            try {
+                StringBuilder ids = new StringBuilder();
+                for (net.minecraft.core.item.Item it : net.minecraft.core.item.Item.itemsList) if (it != null && it.namespaceID != null) ids.append(it.namespaceID).append(' ').append(it.id).append('\n');
+                for (net.minecraft.core.block.Block<?> bl : net.minecraft.core.block.Blocks.blocksList) if (bl != null) ids.append(bl.namespaceId()).append(' ').append(bl.id()).append('\n');
+                java.io.File idf = new java.io.File(dataDir, "share-ids.txt");
+                java.nio.file.Files.write(idf.toPath(), ids.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                mods.add(openhouse.ModShare.extra(idf, "openhouse:ids", "the server's block and item numbers"));
+            } catch (Exception e) { LOG.warn("can't list the item numbers to share: {}", e.toString()); }
             return openhouse.ModShare.writeHostManifest(mods, new java.io.File(dataDir, "share.json"));
         } catch (Exception e) {
             LOG.warn("can't list this server's mods to share: {}", e.toString());
@@ -481,6 +589,7 @@ public final class ServerRoom {
     }
 
     volatile String shareFolders = openhouse.ShareFolders.DEFAULT;
+    volatile boolean bridge = true;
 
     private void load() {
         Properties p = new Properties();
@@ -499,6 +608,8 @@ public final class ServerRoom {
         token = p.getProperty("token", "").trim();
 
         shareFolders = p.getProperty(openhouse.ShareFolders.SETTING, openhouse.ShareFolders.DEFAULT).trim();
+
+        bridge = !"off".equalsIgnoreCase(p.getProperty("version-bridge", "on").trim());
 
         if (!Rtc.isPicked(code)) {
             code = "";

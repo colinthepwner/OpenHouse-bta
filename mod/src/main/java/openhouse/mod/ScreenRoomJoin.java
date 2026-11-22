@@ -25,7 +25,10 @@ import org.jetbrains.annotations.NotNull;
 import org.lwjgl.input.Keyboard;
 
 public final class ScreenRoomJoin extends Screen {
-    private enum Phase { LOOKUP, CHECK, OWN, PACKS, PACKS_GOT, VERSION, ASK, DOWNLOAD, RESTART, FAILED, CONNECT }
+    private enum Phase { LOOKUP, CHECK, OWN, PACKS, PACKS_GOT, VERSION, ASK, DOWNLOAD, TRANSLATE, RESTART, FAILED, CONNECT }
+    private boolean translate;
+    private volatile Throwable translate_err;
+    private volatile boolean translate_done;
 
     private final String code;
     private final Joiner joiner;
@@ -70,7 +73,10 @@ public final class ScreenRoomJoin extends Screen {
         back.visible = back.enabled = phase != Phase.RESTART;
     }
 
+    private boolean fw_done;
+
     @Override public void tick() {
+        if (!fw_done) { fw_done = true; if (Firewall.cut_in(mc, this)) return; }
         Joiner.State s = joiner.state;
         switch (phase) {
             case LOOKUP:
@@ -88,6 +94,17 @@ public final class ScreenRoomJoin extends Screen {
                         hostOlder = Version.compare(joiner.hostVersion, Version.VERSION) < 0;
                         phase = Phase.VERSION;
                         break;
+                    }
+
+                    if (joiner.hostBta != 0 && joiner.hostBta != OpenHouseMod.protocol()) {
+                        if (ModTranslate.wanted(joiner.hostBta)) {
+                            translate = true;
+                            OpenHouseMod.LOG.info("room {} runs BTA 8.0.1: its mods get translated for this game", code);
+                        } else {
+                            OpenHouseMod.LOG.info("room {} runs another BTA version (protocol {}): joining without its mods", code, joiner.hostBta);
+                            connect();
+                            break;
+                        }
                     }
                     hostMods = joiner.modList;
                     missing = missingMods(hostMods);
@@ -126,25 +143,27 @@ public final class ScreenRoomJoin extends Screen {
                 if (System.currentTimeMillis() - packsGotAt > 3500) afterPacks();
                 break;
             case DOWNLOAD:
-                if (joiner.modState == Joiner.ModState.DONE) {
-                    try {
-                        File pack = packDir();
-
-                        File self = Rtc.self();
-                        if (!self.isFile()) throw new java.io.IOException("this game isn't running the mod from a jar (development run)");
-                        Files.copy(self.toPath(), new File(pack, "openhouse-" + FabricLoader.getInstance().getModContainer("openhouse")
-                                .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("") + ".jar").toPath(), StandardCopyOption.REPLACE_EXISTING);
-                        joiner.downloadClose();
-                        OpenHouseMod.rememberCode(code);
-                        restarted = Relaunch.start(pack, code);
-                        phase = Phase.RESTART;
-                        restartAt = System.currentTimeMillis() + 4000;
-                    } catch (Exception e) {
-                        fail(e.getMessage() == null ? e.toString() : e.getMessage());
-                    }
+                if (joiner.modState == Joiner.ModState.DONE && translate) {
+                    joiner.downloadClose();
+                    phase = Phase.TRANSLATE;
+                    final File pk = packDir();
+                    final List<ModShare.Mod> hm = new ArrayList<>(hostMods);
+                    Thread th = new Thread(() -> {
+                        try { ModTranslate.pack(pk, hm); } catch (Throwable e) { translate_err = e; OpenHouseMod.LOG.warn("couldn't translate room {}'s mods", code, e); }
+                        translate_done = true;
+                    }, "OpenHouse mod translation");
+                    th.setDaemon(true);
+                    th.start();
+                } else if (joiner.modState == Joiner.ModState.DONE) {
+                    restart_into_pack();
                 } else if (joiner.modState == Joiner.ModState.FAILED) {
                     fail(joiner.modError);
                 }
+                break;
+            case TRANSLATE:
+                if (!translate_done) break;
+                if (translate_err == null) restart_into_pack();
+                else fail(I18n.getInstance().translateKeyAndFormat("gui.openhouse.mods.translatefailed", translate_err.getMessage() == null ? translate_err.toString() : translate_err.getMessage()));
                 break;
             case RESTART:
 
@@ -158,6 +177,25 @@ public final class ScreenRoomJoin extends Screen {
         }
         layout();
     }
+
+    private void restart_into_pack() {
+        try {
+            File pack = packDir();
+
+            File self = Rtc.self();
+            if (!self.isFile()) throw new java.io.IOException("this game isn't running the mod from a jar (development run)");
+            Files.copy(self.toPath(), new File(pack, "openhouse-" + FabricLoader.getInstance().getModContainer("openhouse")
+                    .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("") + ".jar").toPath(), StandardCopyOption.REPLACE_EXISTING);
+            joiner.downloadClose();
+            OpenHouseMod.rememberCode(code);
+            restarted = Relaunch.start(pack, code);
+            phase = Phase.RESTART;
+            restartAt = System.currentTimeMillis() + 4000;
+        } catch (Exception e) {
+            fail(e.getMessage() == null ? e.toString() : e.getMessage());
+        }
+    }
+
     private long restartAt = Long.MAX_VALUE;
     private Process restarted;
 
@@ -408,9 +446,20 @@ public final class ScreenRoomJoin extends Screen {
             for (ModShare.Mod m : hostMods) {
                 if (OpenHouseMod.MOD_ID.equals(m.id) || ModShare.TEXTURE_PACK.equals(m.id) || ModShare.ORIGINAL.equals(m.id)) continue;
                 keep.add(m.file);
+                keep.add(m.file + ".oh7");
+                keep.add(ModTranslate.orig(pack, m.file).getName());
                 File have = new File(pack, m.file);
+
+                if (translate && ModTranslate.done(pack, m)) continue;
+
+                File o = ModTranslate.orig(pack, m.file);
+                if (translate && o.isFile() && o.length() == m.size && m.sha256.equals(Rtc.sha256(o))) {
+                    Files.copy(o.toPath(), have.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    continue;
+                }
                 if (!(have.isFile() && have.length() == m.size && m.sha256.equals(Rtc.sha256(have)))) fetch.add(m);
             }
+            if (translate) { keep.add(ModTranslate.stubs(pack).getName()); keep.add(ModTranslate.libs(pack).getName()); keep.add(ModTranslate.libs_bta(pack).getName()); }
             File[] old = pack.listFiles();
             if (old != null) for (File f : old) if (f.isFile() && !keep.contains(f.getName())) f.delete();
             for (File f : mine) {
@@ -565,6 +614,10 @@ public final class ScreenRoomJoin extends Screen {
                 lines.add(t.translateKeyAndFormat("gui.openhouse.mods.downloading", (int) (joiner.modBytesDone * 100 / total), mb(joiner.modBytesTotal)));
                 break;
             }
+            case TRANSLATE:
+                lines.add(t.translateKey("gui.openhouse.mods.translating"));
+                if (!ModTranslate.now.isEmpty()) lines.add(ModTranslate.now);
+                break;
             case RESTART:
                 lines.add(t.translateKey("gui.openhouse.mods.restarting"));
                 break;

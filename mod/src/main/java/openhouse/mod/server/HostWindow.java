@@ -235,7 +235,7 @@ public final class HostWindow {
         left.setOpaque(false);
         left.setLayout(new BoxLayout(left, BoxLayout.X_AXIS));
 
-        JLabel sub = new JLabel("OpenHouse " + openhouse.Version.VERSION + "  ·  Better than Adventure " + openhouse.Rtc.BTA_SERVER_VERSION);
+        JLabel sub = new JLabel("OpenHouse " + openhouse.Version.VERSION + "  ·  Better than Adventure");
         sub.setForeground(dim());
         sub.setFont(Laf.ui(Font.PLAIN, 12));
         left.add(sub);

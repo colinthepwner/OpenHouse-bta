@@ -156,6 +156,8 @@ public final class RoomCommand implements CommandManager.CommandRegistry {
 
                 .then(LocatorCommand.tree())
 
+                .then(AfkCommand.tree())
+
                 .then(ArgumentBuilderLiteral.<CommandSource>literal("ui").requires(s -> s.hasAdmin() && ServerRoom.OPENHOST)
                         .executes(c -> {
                             c.getSource().sendMessage("OpenHost's window: " + HostUi.read(HostUi.KEY, "modern") + " (oh ui modern | classic | console)");

@@ -86,9 +86,12 @@ public final class Joiner {
     public volatile List<ModShare.Mod> modList;
     public volatile String hostVersion;
     public volatile Object hostProto;
+    public volatile int hostBta;
     public volatile String modError = "";
     public volatile long modBytesDone, modBytesTotal;
     private final java.util.Map<String, Long> modProgress = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public volatile boolean pack;
 
     public void requestModList() {
         modState = ModState.LISTING;
@@ -162,6 +165,7 @@ public final class Joiner {
                 args.add(peerId);
                 args.add(String.valueOf(port));
                 if (relayOnly) args.add("--relay");
+                if (pack) args.add("--pack");
                 Process p = Rtc.start(self, libs, "openhouse.rtc.JoinMain", args);
                 child = p;
                 childIn = p.getOutputStream();
@@ -252,6 +256,8 @@ public final class Joiner {
                         java.util.Map<String, Object> root = Json.obj(Json.parse(rest));
                         hv = root == null ? null : Json.str(root.get("openhouse"));
                         hostProto = root == null ? null : root.get("ohp");
+                        Object bta = root == null ? null : root.get("bta");
+                        hostBta = bta instanceof Number ? ((Number) bta).intValue() : 0;
                     }
                     if (hv == null) for (ModShare.Mod m : modList) if ("openhouse".equals(m.id)) hv = m.version;
                     hostVersion = hv;

@@ -9,14 +9,17 @@ Easily launch a BTA! server for you and your friends, zero port forwarding.
 - **Rewind.** Every save of your world on a timeline with pictures. Load an old one without touching the real world.
 - **Player locator.** Friends' names show through walls in their own colour, and as dots when they're far away.
 - **OpenHost.** An always-online server with a proper window: players, mods, settings and a console that understands lazy commands.
-- **Plays nice.** Joins from Better than Adventure, the helper, or [Rocket Edition](https://mcrocket.lol) in a browser.
+- **AFK players fade out.** Tab out or go idle and you slowly fade away, then make room after a while. Mobs leave you alone meanwhile.
+- **Plays nice.** Joins from Better than Adventure 8.0.1 or 7.3, the helper, or [Rocket Edition](https://mcrocket.lol) in a browser.
+
+![One world, any BTA!: a BTA! 8.0.1 player and a BTA! 7.3 player in the same world](art/openhouse-promo.png)
 
 ## Which download do I need?
 
 | I want to... | Get this |
 |---|---|
 | Play with friends, the easy way | **[OpenHouse BTA Instance](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHouse-BTA-Instance.zip)**, for Prism Launcher or MultiMC. Click **Add Instance**, then **Import**, and pick the zip. |
-| Add OpenHouse to the BTA! I already play | The mod, `openhouse-<version>.jar` from [Releases](https://github.com/colinthepwner/OpenHouse-bta/releases/latest). It goes in your `mods` folder (needs Babric). |
+| Add OpenHouse to the BTA! I already play | The mod, `openhouse-<version>.jar` from [Releases](https://github.com/colinthepwner/OpenHouse-bta/releases/latest). It goes in your `mods` folder (needs Babric). The same file works on BTA! 8.0.1 and 7.3. |
 | Run a server that's always online | **[OpenHost.jar](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHost.jar)** |
 | Join or host without a mod loader | **[openhouse-helper.jar](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/openhouse-helper.jar)** (see [No mod loader?](#no-mod-loader)) |
 
@@ -100,6 +103,7 @@ Options > Player > Hurt Sound has a **Custom** setting with a mic button next to
   one of them plays each time.
 - Only a short sound is kept, evened out so it's never too loud or too quiet. Everyone with
   OpenHouse or Rocket Edition hears it when you get hurt, and when you die.
+- Name one of the files `death` (`death.wav`, say) and it plays when you die instead.
 
 # Rewind
 The rewind button next to the folder in your world list shows your world's saves on a timeline,
@@ -139,6 +143,12 @@ The helper doesn't hand out mods, so everyone needs the same ones.
 - Friends can join with or without a Minecraft account. Without one, they show up with the skin
   that goes with their name.
 - Two people can't play under the same name at once.
+- Players on BTA! 7.3 and 8.0.1 can play in the same world. Join like always.
+- Players who tab out, sit on the pause menu or stop touching the keys for a minute fade away, and are
+  disconnected after 2 minutes (never the host). Mobs ignore them until they're back. Hosts change it with
+  `/oh afk idle <seconds>`, `/oh afk kick <seconds>` (0 for never) and the game rules `afkFade` and
+  `afkMobsIgnore`.
+- Two mods that want the same block or item number don't stop the game. OH moves one and keeps it there.
 - Your friends' names show through walls in their own colour (the same one their name has in chat), and turn into a dot when they're far
   away, so you can always find each other. Sneaking hides you behind walls. Turn it off in
   Options > Player. Hosts can turn it off for everyone (`/gamerule showPlayerLocator false`) or

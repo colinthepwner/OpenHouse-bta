@@ -22,7 +22,10 @@ public final class MsgKeys {
     }
 
     public static byte[] wire(byte tag) {
-        byte[] b = String.join("\n", PacketMessageTranslatable.ID2KEY_MAP).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String[] keys;
+        try { keys = PacketMessageTranslatable.ID2KEY_MAP; } catch (Throwable t) { return null; }
+        if (keys == null) return null;
+        byte[] b = String.join("\n", keys).getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] out = new byte[b.length + 1];
         out[0] = tag;
         System.arraycopy(b, 0, out, 1, b.length);

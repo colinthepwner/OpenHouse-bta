@@ -3,11 +3,14 @@ package openhouse.mod.mixin;
 import java.util.List;
 import net.minecraft.core.net.NetworkManager;
 import net.minecraft.core.net.handler.PacketHandler;
+import net.minecraft.core.net.packet.Packet;
 import net.minecraft.core.net.packet.PacketCustomPayload;
+import openhouse.mod.ModWrap;
 import openhouse.mod.voice.VoiceWire;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(value = NetworkManager.class, remap = false)
@@ -16,6 +19,10 @@ public abstract class NetworkManagerMixin {
 
     @Redirect(method = "readPacket", at = @At(value = "INVOKE", target = "Ljava/util/List;add(Ljava/lang/Object;)Z"), require = 0)
     private boolean openhouse$voice(List<Object> list, Object p) {
+        if (p instanceof PacketCustomPayload && openhouse.bridge.Bridge.BRIDGED.equals(((PacketCustomPayload) p).channel)) {
+            ModWrap.mark((NetworkManager) (Object) this);
+            return true;
+        }
         if (p instanceof PacketCustomPayload && VoiceWire.CHANNEL.equals(((PacketCustomPayload) p).channel)) {
             byte[] d = ((PacketCustomPayload) p).data;
             PacketHandler h = packetListener;
@@ -26,5 +33,10 @@ public abstract class NetworkManagerMixin {
             return true;
         }
         return list.add(p);
+    }
+
+    @ModifyVariable(method = "addToSendQueue", at = @At("HEAD"), argsOnly = true, require = 0)
+    private Packet openhouse$wrap(Packet p) {
+        return ModWrap.out((NetworkManager) (Object) this, p);
     }
 }

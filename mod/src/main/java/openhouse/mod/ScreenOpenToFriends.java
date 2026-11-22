@@ -39,8 +39,11 @@ public final class ScreenOpenToFriends extends Screen {
         return (!closing || lost != null) && server.crash != null;
     }
 
+    private boolean fw_done;
+
     @Override public void tick() {
         if (handedOver) return;
+        if (!fw_done) { fw_done = true; if (!closing && Firewall.cut_in(mc, this)) return; }
         LocalServer.State s = server.state;
         if (!closing && s == LocalServer.State.READY && !crashed()) {
             handedOver = true;

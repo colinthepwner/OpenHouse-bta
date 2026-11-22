@@ -10,6 +10,7 @@ public final class OpenHouseDiscord {
     public static volatile boolean shareCode;
     static volatile String pendingJoin;
     private static volatile String lastSaid;
+    private static volatile boolean said_err;
 
     public static void join(String secret) {
         if (secret == null || !secret.startsWith(SECRET)) return;
@@ -39,6 +40,7 @@ public final class OpenHouseDiscord {
             a.secrets().setJoinSecret(SECRET + ls.code);
         } catch (Throwable t) {
 
+            if (!said_err) { said_err = true; OpenHouseMod.LOG.warn("couldn't put the room in Discord presence", t); }
         }
     }
 }

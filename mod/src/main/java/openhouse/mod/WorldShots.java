@@ -34,10 +34,34 @@ public final class WorldShots {
         try { grab(mc, world); } catch (Throwable t) { OpenHouseMod.LOG.debug("world shot failed: {}", t.toString()); }
     }
 
+    private static int[] old_fb(Object r) {
+        try {
+            java.lang.reflect.Field f = null;
+            for (Class<?> c = r.getClass(); c != null && f == null; c = c.getSuperclass())
+                try { f = c.getDeclaredField("worldFramebuffer"); } catch (NoSuchFieldException ignored) { }
+            if (f == null) return null;
+            f.setAccessible(true);
+            Object fbo = f.get(r);
+            if (fbo == null) return null;
+            java.lang.reflect.Field id = fbo.getClass().getDeclaredField("id");
+            id.setAccessible(true);
+            int w = r.getClass().getField("renderWidth").getInt(r), h = r.getClass().getField("renderHeight").getInt(r);
+            int n = id.getInt(fbo);
+            return n <= 0 ? null : new int[] { n, w, h };
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     private static void grab(Minecraft mc, String world) {
 
         int fb = 0, w = mc.gameWindow.getWidthPixels(), h = mc.gameWindow.getHeightPixels();
-        if (mc.renderer instanceof net.minecraft.client.render.shader.ShadersRenderer) {
+        if (mc.renderer instanceof net.minecraft.client.render.shader.ShadersRenderer && !(mc.renderer instanceof openhouse.mod.mixin.ShadersRendererAccessor)) {
+
+            int[] o = old_fb(mc.renderer);
+            if (o == null) return;
+            fb = o[0]; w = o[1]; h = o[2];
+        } else if (mc.renderer instanceof net.minecraft.client.render.shader.ShadersRenderer) {
             net.minecraft.client.render.shader.framebuffer.FrameBuffer wf = ((openhouse.mod.mixin.ShadersRendererAccessor) mc.renderer).openhouse$world_fb();
             if (wf == null || wf.isDeleted()) return;
             net.minecraft.client.render.shader.framebuffer.FrameBuffer o = wf.getOutputBuffer();

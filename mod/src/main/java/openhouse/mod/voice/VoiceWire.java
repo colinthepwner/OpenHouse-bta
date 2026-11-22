@@ -9,15 +9,17 @@ public final class VoiceWire {
 
     public static final String CHANNEL = "openhouse:voice";
     public static final int PROTO = 1;
-    public static final byte HELLO = 0, UP = 1, DOWN = 2, STATE = 3, HURT_SET = 4, HURT_CLIP = 5, HURT_PLAY = 6, HURT_ADD = 7, MSG_KEYS = 8;
+    public static final byte HELLO = 0, UP = 1, DOWN = 2, STATE = 3, HURT_SET = 4, HURT_CLIP = 5, HURT_PLAY = 6, HURT_ADD = 7, MSG_KEYS = 8, DEATH_SET = 9, AFK = 10, AFK_LIST = 11;
     public static final int HURT_MAX = 3;
     public static final int CLIP_MAX = 12000;
     public static final int CLIP_FRAMES = 60;
 
+    public static final float DEATH_LOUDER = 1.4F;
+
     public interface Sink { void got(PacketHandler from, byte[] data); }
     public static volatile Sink client, server;
 
-    public interface HurtHook { boolean play(Object player, float pitch); }
+    public interface HurtHook { boolean play(Object player, float pitch, boolean death); }
     public static volatile HurtHook hurt;
 
     public static volatile HurtHook local_hurt;
@@ -43,4 +45,7 @@ public final class VoiceWire {
     public static final GameRuleBoolean MOBS_HEAR = GameRules.register(new GameRuleBoolean("mobsHearVoice", "gamerule.mobs_hear_voice", false));
 
     public static final GameRuleBoolean LOCATOR = GameRules.register(new GameRuleBoolean("showPlayerLocator", "gamerule.show_player_locator", true));
+
+    public static final GameRuleBoolean AFK_FADE = GameRules.register(new GameRuleBoolean("afkFade", "gamerule.afk_fade", true));
+    public static final GameRuleBoolean AFK_MOBS = GameRules.register(new GameRuleBoolean("afkMobsIgnore", "gamerule.afk_mobs_ignore", true));
 }

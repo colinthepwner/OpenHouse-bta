@@ -16,13 +16,13 @@
 	"environment": "*",
 	"entrypoints": {
 		"preLaunch": [
-			"openhouse.mod.OpenHousePreLaunch"
+			"openhouse.gate.GatePreLaunch"
 		],
 		"client": [
-			"openhouse.mod.OpenHouseMod"
+			"openhouse.gate.GateClient"
 		],
 		"server": [
-			"openhouse.mod.server.OpenHouseServer"
+			"openhouse.gate.GateServer"
 		]
 	},
 	"mixins": [

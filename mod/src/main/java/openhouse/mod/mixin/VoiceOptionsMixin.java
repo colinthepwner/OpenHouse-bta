@@ -30,6 +30,9 @@ public abstract class VoiceOptionsMixin {
                     if (o instanceof ToggleableOptionComponent && f.get(o) == GameSettings.PLAYER_HURT_SOUND) { list.set(i, new HurtSoundComponent()); return; }
                 }
             }
+
+            for (OptionsComponent c : OptionsPages.PLAYER.getComponents())
+                if (c instanceof OptionsCategory) { ((OptionsCategoryAccessor) c).openhouse$components().add(new HurtSoundComponent()); return; }
         } catch (Throwable t) {
             openhouse.mod.OpenHouseMod.LOG.info("[voice] couldn't add Custom to Hurt Sound: {}", t.toString());
         }

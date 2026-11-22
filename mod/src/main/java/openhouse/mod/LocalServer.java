@@ -95,7 +95,7 @@ public final class LocalServer {
     }
 
     public static boolean supported() {
-        return Rtc.BTA_SERVER_VERSION.equals(gameVersion());
+        return Rtc.hasServer(gameVersion());
     }
 
     public static String gameVersion() {
@@ -141,7 +141,7 @@ public final class LocalServer {
                 if (c != null && c.state == State.STARTING) c.detail = s;
             };
             try {
-                Rtc.btaServer(lib, status);
+                Rtc.btaServer(lib, gameVersion(), status);
                 Rtc.libraries(lib, status);
             } catch (Exception e) {
 
@@ -165,7 +165,7 @@ public final class LocalServer {
         try {
             set(State.STARTING, "Getting the server ready...");
             awaitPrefetch();
-            File serverJar = Rtc.btaServer(new File(base, "lib"), s -> detail = s);
+            File serverJar = Rtc.btaServer(new File(base, "lib"), gameVersion(), s -> detail = s);
             if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("can't create " + dir);
             File world = new File(FabricLoader.getInstance().getGameDir().toFile(), "saves" + File.separator + worldDir);
             if (!new File(world, "level.dat").isFile()) throw new IOException("can't find the world's save (" + world + ")");
@@ -277,6 +277,15 @@ public final class LocalServer {
             List<openhouse.ModShare.Mod> share = openhouse.ModShare.scanFiles(jars);
             File cfg = zipConfigs(new File(FabricLoader.getInstance().getGameDir().toFile(), "config"), new File(base, "share-config.zip"));
             if (cfg != null) share.add(openhouse.ModShare.extra(cfg, "openhouse:config", "the host's mod settings"));
+
+            try {
+                StringBuilder ids = new StringBuilder();
+                for (net.minecraft.core.item.Item it : net.minecraft.core.item.Item.itemsList) if (it != null && it.namespaceID != null) ids.append(it.namespaceID).append(' ').append(it.id).append('\n');
+                for (net.minecraft.core.block.Block<?> bl : net.minecraft.core.block.Blocks.blocksList) if (bl != null) ids.append(bl.namespaceId()).append(' ').append(bl.id()).append('\n');
+                File idf = new File(base, "share-ids.txt");
+                java.nio.file.Files.write(idf.toPath(), ids.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                share.add(openhouse.ModShare.extra(idf, "openhouse:ids", "the host's block and item numbers"));
+            } catch (Exception e) { OpenHouseMod.LOG.warn("can't list the item numbers to share: {}", e.toString()); }
             File table = new File(world, "uselessNumericalSave.dat");
             if (FabricLoader.getInstance().isModLoaded("uselessnumerical") && table.isFile()) {
                 File copy = new File(base, "share-uselessnumerical.dat");
@@ -307,6 +316,7 @@ public final class LocalServer {
     }
 
     private List<String> runServer(File serverJar, File dir, File world, File modsDir, File share, File gate) throws Exception {
+        LevelFix fix = LevelFix.before(world, username);
         {
             port = freePort();
             writeSettings(dir);
@@ -377,6 +387,7 @@ public final class LocalServer {
             int exit = p.waitFor();
 
             if (gate.isFile()) {
+                fix.after(username, uuid);
                 if (state == State.STOPPING) detail = "Backing up the world...";
                 WorldGuard.backup(world, "after-friends");
             }

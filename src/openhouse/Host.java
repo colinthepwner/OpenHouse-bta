@@ -56,6 +56,18 @@ public final class Host {
         return this;
     }
 
+    private String bridge_info = "";
+
+    public Host bridge_info(java.io.File f) {
+        bridge_info = f == null ? "" : f.getAbsolutePath();
+        return this;
+    }
+
+    public Host bridge_off() {
+        bridge_info = "off";
+        return this;
+    }
+
     public void start() {
         Thread t = new Thread(this::run, "openhouse host");
         t.setDaemon(true);
@@ -76,7 +88,7 @@ public final class Host {
             while (!stopping) {
                 long started = System.currentTimeMillis();
                 Process p = Rtc.start(self, libs, "openhouse.rtc.HostMain",
-                        Arrays.asList(code, target, token, shareManifest == null ? "" : shareManifest.getAbsolutePath(), pool));
+                        Arrays.asList(code, target, token, shareManifest == null ? "" : shareManifest.getAbsolutePath(), pool, bridge_info));
                 child = p;
                 OutputStream keep = p.getOutputStream();
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));

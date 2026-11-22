@@ -22,4 +22,9 @@ public abstract class WorldRendererMixin {
     private void openhouse$locator(float pt, long until, CallbackInfo ci) {
         openhouse.mod.Locator.draw(mc, pt);
     }
+
+    @Inject(method = "renderWorld", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/RenderGlobal;renderClouds(F)V"), require = 0)
+    private void openhouse$cam_before_clouds(float pt, long until, CallbackInfo ci) {
+        openhouse.mod.Locator.cam_before_clouds();
+    }
 }
