@@ -248,7 +248,11 @@ public final class WorldRepair {
         int[] n = new int[1];
         for (Map.Entry<Long, Cand> e : world.entrySet()) {
             double s = score(e.getValue(), world, null, n);
-            if (n[0] >= 2 && s > BAD) problem.put(e.getKey(), String.format("doesn't fit its neighbours (seams %.2f)", s));
+            if (!(n[0] >= 2 && s > BAD)) continue;
+            long home = fits_elsewhere(e.getValue(), e.getKey(), world, n);
+            int x = (int) (e.getKey() >> 32), z = (int) (long) e.getKey();
+            if (home != Long.MIN_VALUE) problem.put(e.getKey(), String.format("doesn't fit its neighbours (seams %.2f), its blocks fit %d,%d", s, (int) (home >> 32), (int) home));
+            else report.lines.add(String.format("chunk %d,%d doesn't fit its neighbours (seams %.2f) -> left as it is (a dig or a build: its blocks fit nowhere else)", x, z, s));
         }
         if (problem.isEmpty()) return;
         report.damaged += problem.size();
@@ -397,6 +401,29 @@ public final class WorldRepair {
                 report.lines.add("chunk " + x + "," + z + " " + e.getValue() + " -> left as it is (no better copy)");
             }
         }
+    }
+
+    static long fits_elsewhere(Cand c, long own, Map<Long, Cand> world, int[] n) {
+        if (c.masks == null) return Long.MIN_VALUE;
+
+        int rx = (int) (own >> 32) >> 5, rz = (int) own >> 5;
+        long best_k = Long.MIN_VALUE;
+        double best = GOOD;
+        for (int i = 0; i < 1024; i++) {
+            int x = rx * 32 + (i & 31), z = rz * 32 + (i >> 5), cnt = 0;
+            long k = key(x, z);
+            if (k == own) continue;
+            double sum = 0;
+            for (int e = 0; e < 4; e++) {
+                long nk = key(x + DX[e], z + DZ[e]);
+                Cand nb = nk == own ? null : world.get(nk);
+                if (nb == null || nb.masks == null) continue;
+                sum += edge(c, e, nb);
+                cnt++;
+            }
+            if (cnt >= 2 && sum / cnt <= best) { best = sum / cnt; best_k = k; }
+        }
+        return best_k;
     }
 
     static void rebuild(File target, int[] head, Map<Long, Cand> chosen) throws IOException {
