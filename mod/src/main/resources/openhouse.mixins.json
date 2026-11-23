@@ -6,8 +6,8 @@
   "injectors": {
     "defaultRequire": 1
   },
-  "mixins": ["NetworkManagerMixin", "PlayerHurtMixin", "ItemIdMixin", "BlockIdMixin", "KeepFixMixin", "KeepChunkMixin", "KeepInventoryMixin"],
-  "client": ["E4VoiceQuietMixin", "E4VoiceKeysMixin", 
+  "mixins": ["NetworkManagerMixin", "PlayerHurtMixin", "ItemIdMixin", "BlockIdMixin", "KeepFixMixin", "KeepChunkMixin", "KeepInventoryMixin", "LostDimMixin", "LevelDimMixin"],
+  "client": ["StartWorldDimMixin", "E4VoiceQuietMixin", "E4VoiceKeysMixin", 
     "ScreenPagedAccessor",
     "ScreenPagedIconMixin",
     "ScreenSelectServerMixin",
