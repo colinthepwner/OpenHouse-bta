@@ -44,7 +44,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public final class JoinMain {
-    static final String SIGNAL = "wss://0.peerjs.com:443/peerjs?key=peerjs";
 
     static final long MAX_BUFFERED = 4L << 20;
 
@@ -60,6 +59,11 @@ public final class JoinMain {
     static PeerConnectionFactory factory;
     static volatile WsClient signal;
     static volatile boolean signalOpen;
+
+    static volatile int srv;
+    static volatile boolean other_tried;
+    static volatile boolean reprobe;
+    static volatile boolean switching;
     static boolean probedOnce;
     static final Object state = new Object();
     static volatile boolean probing;
@@ -167,12 +171,14 @@ public final class JoinMain {
     }
 
     static void signalLoop() {
+        int fails = 0, k = 0;
         while (true) {
             final Object done = new Object();
             final String[] why = { null };
             final boolean[] idTaken = { false };
             try {
-                WsClient s = WsClient.connect(SIGNAL + "&id=" + self + "&token=" + token + "&version=1.5.4", new WsClient.Listener() {
+                k = srv;
+                WsClient s = WsClient.connect(openhouse.Rtc.SIGNALS[k] + "&id=" + self + "&token=" + token + "&version=1.5.4", new WsClient.Listener() {
                     public void onText(String text) {
                         debug("in  " + (text.length() > 200 ? text.substring(0, 200) + "..." : text));
                         Map<String, Object> m;
@@ -193,15 +199,21 @@ public final class JoinMain {
                     }
                 }
                 s.close();
-                if (signalOpen) log("matchmaking connection dropped (" + why[0] + "), reconnecting");
+                fails = 0;
+                if (signalOpen && !switching) log("matchmaking connection dropped (" + why[0] + "), reconnecting");
+                switching = false;
             } catch (Exception e) {
-                out("OFFLINE " + e.getMessage());
+
+                log("can't reach the " + openhouse.Rtc.SIGNAL_NAMES[k] + " (" + e.getMessage() + ")");
+                srv = k ^ 1;
+                if (++fails >= 2) out("OFFLINE " + e.getMessage());
             }
             signalOpen = false;
 
             for (Link l : new ArrayList<>(links.values())) l.restart();
 
             if (idTaken[0]) newIdentity();
+            if (fails == 1) continue;
             try { Thread.sleep(3000); } catch (InterruptedException e) { return; }
         }
     }
@@ -227,7 +239,9 @@ public final class JoinMain {
                 state.notifyAll();
             }
             out("SIGNAL");
-            if (first) startProbe();
+            boolean again = reprobe;
+            reprobe = false;
+            if (first || again) startProbe();
         } else if ("ANSWER".equals(type) && payload != null) {
             Link l = links.get(Json.str(payload.get("connectionId")));
             Map<String, Object> sdp = Json.obj(payload.get("sdp"));
@@ -278,6 +292,18 @@ public final class JoinMain {
                 p.close();
                 synchronized (state) { probing = false; state.notifyAll(); }
             }
+            if (result.equals("NOTFOUND") && !other_tried) {
+
+                other_tried = true;
+                reprobe = true;
+                switching = true;
+                srv ^= 1;
+                debug("room not on the " + openhouse.Rtc.SIGNAL_NAMES[srv ^ 1] + ", trying the " + openhouse.Rtc.SIGNAL_NAMES[srv]);
+                WsClient s = signal;
+                if (s != null) s.close();
+                return;
+            }
+            other_tried = false;
             out(result);
         }, "openhouse probe");
         t.setDaemon(true);

@@ -37,7 +37,6 @@ import openhouse.WsClient;
 public final class HostMain {
     static final String PREFIX = openhouse.Rtc.PREFIX;
     static final String ALPHABET = openhouse.Rtc.ALPHABET;
-    static final String SIGNAL = "wss://0.peerjs.com:443/peerjs?key=peerjs";
 
     static final long MAX_BUFFERED = 4L << 20;
 
@@ -47,11 +46,11 @@ public final class HostMain {
 
     static final String JOINER_PREFIX = "bta-join-";
 
-    static String code;
+    static volatile String code;
     static String targetHost;
     static int targetPort;
     static PeerConnectionFactory factory;
-    static volatile WsClient signal;
+    static final WsClient[] sigs = new WsClient[openhouse.Rtc.SIGNALS.length];
     static final Map<String, Peer> peers = new ConcurrentHashMap<>();
     static final SecureRandom rnd = new SecureRandom();
 
@@ -148,42 +147,64 @@ public final class HostMain {
             System.exit(3);
         }
 
-        int taken = 0;
+        for (int k = 1; k < openhouse.Rtc.SIGNALS.length; k++) {
+            final int kk = k;
+            Thread t = new Thread(() -> sig_loop(kk, token), "openhouse signal " + k);
+            t.setDaemon(true);
+            t.start();
+        }
+        sig_loop(0, token);
+    }
+
+    static void sig_loop(int k, String token) {
+        String name = openhouse.Rtc.SIGNAL_NAMES[k];
+        int taken = 0, down = 0;
         while (true) {
             final Object done = new Object();
             final String[] why = { null };
             final boolean[] idTaken = { false };
+            final String mine = code;
             try {
-                signal = WsClient.connect(SIGNAL + "&id=" + PREFIX + code + "&token=" + token + "&version=1.5.4", new WsClient.Listener() {
+                WsClient s = WsClient.connect(openhouse.Rtc.SIGNALS[k] + "&id=" + PREFIX + mine + "&token=" + token + "&version=1.5.4", new WsClient.Listener() {
                     public void onText(String text) {
-                        debug("in  " + (text.length() > 200 ? text.substring(0, 200) + "..." : text));
+                        debug(k + " in  " + (text.length() > 200 ? text.substring(0, 200) + "..." : text));
                         Map<String, Object> m = Json.obj(Json.parse(text));
                         if (m == null) return;
                         String type = Json.str(m.get("type"));
                         if ("ID-TAKEN".equals(type)) idTaken[0] = true;
-                        onSignal(m);
+                        onSignal(k, m);
                     }
                     public void onClosed(String w) { synchronized (done) { why[0] = w; done.notifyAll(); } }
                 });
+                sigs[k] = s;
+                if (down > 0) log("reached the " + name + " again");
+                down = 0;
 
                 synchronized (done) {
-                    while (why[0] == null) {
+                    while (why[0] == null && mine.equals(code)) {
                         done.wait(5000);
                         if (why[0] == null) {
-                            try { signal.send("{\"type\":\"HEARTBEAT\"}"); } catch (IOException e) { break; }
+                            try { s.send("{\"type\":\"HEARTBEAT\"}"); } catch (IOException e) { break; }
                         }
                     }
                 }
-                signal.close();
+                sigs[k] = null;
+                s.close();
             } catch (Exception e) {
-                log("matchmaking server unreachable (" + e.getMessage() + "), trying again shortly");
+                sigs[k] = null;
+
+                if (down++ == 0) log("can't reach the " + name + " (" + e.getMessage() + "), trying again shortly");
             }
             if (idTaken[0]) {
 
-                synchronized (System.out) { System.out.println("TAKEN " + code); System.out.flush(); }
-                if (!openhouse.Rtc.isPicked(code) && ++taken >= 4) { code = newCode(); taken = 0; log("code was taken, using a new one"); }
+                synchronized (System.out) { System.out.println("TAKEN " + mine); System.out.flush(); }
+                if (!openhouse.Rtc.isPicked(mine) && ++taken >= 4) {
+                    synchronized (HostMain.class) { if (mine.equals(code)) { code = newCode(); log("code was taken, using a new one"); } }
+                    taken = 0;
+                }
             } else taken = 0;
-            Thread.sleep(idTaken[0] ? 15000 : 5000);
+            try { Thread.sleep(idTaken[0] ? 15000 : down > 3 ? 30000 : down > 0 ? 5000 : mine.equals(code) ? 5000 : 200); }
+            catch (InterruptedException e) { return; }
         }
     }
 
@@ -217,15 +238,15 @@ public final class HostMain {
         synchronized (System.out) { System.out.println("WARN " + line); System.out.flush(); }
     }
 
-    static void sendSignal(Map<String, Object> m) {
-        WsClient s = signal;
+    static void sendSignal(int k, Map<String, Object> m) {
+        WsClient s = sigs[k];
         if (s == null) return;
         String text = Json.write(m);
-        debug("out " + (text.length() > 200 ? text.substring(0, 200) + "..." : text));
+        debug(k + " out " + (text.length() > 200 ? text.substring(0, 200) + "..." : text));
         try { s.send(text); } catch (IOException e) { log("signaling send failed: " + e.getMessage()); }
     }
 
-    static void onSignal(Map<String, Object> m) {
+    static void onSignal(int k, Map<String, Object> m) {
         String type = Json.str(m.get("type"));
         String src = Json.str(m.get("src"));
         Map<String, Object> payload = Json.obj(m.get("payload"));
@@ -240,6 +261,7 @@ public final class HostMain {
             Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))), Json.str(payload.get("oh")), payload.get("ohp"));
             p.pack = Boolean.TRUE.equals(payload.get("pack"));
             p.web = !src.startsWith(JOINER_PREFIX);
+            p.via = k;
             peers.put(cid, p);
             p.offer(Json.str(sdp.get("sdp")));
             Thread w = new Thread(() -> {
@@ -262,7 +284,7 @@ public final class HostMain {
         } else if ("LEAVE".equals(type) || "EXPIRE".equals(type)) {
             for (Peer p : new ArrayList<>(peers.values())) if (p.remote.equals(src)) p.close();
         } else if ("ERROR".equals(type)) {
-            log("matchmaking server error: " + (payload != null ? payload.get("msg") : ""));
+            log(openhouse.Rtc.SIGNAL_NAMES[k] + " error: " + (payload != null ? payload.get("msg") : ""));
         } else if ("ID-TAKEN".equals(type)) {
 
             debug("room code " + code + " is still registered elsewhere");
@@ -277,6 +299,7 @@ public final class HostMain {
         final Object their_proto;
 
         volatile boolean web;
+        volatile int via;
         final RTCPeerConnection pc;
         final List<RTCIceCandidate> early = new ArrayList<>();
         boolean remoteSet;
@@ -318,7 +341,7 @@ public final class HostMain {
                         public void onSuccess(RTCSessionDescription answer) {
                             pc.setLocalDescription(answer, new SetSessionDescriptionObserver() {
                                 public void onSuccess() {
-                                    sendSignal(Json.map("type", "ANSWER", "dst", remote, "payload",
+                                    sendSignal(via, Json.map("type", "ANSWER", "dst", remote, "payload",
                                             Json.map("sdp", Json.map("type", "answer", "sdp", answer.sdp), "type", "data", "connectionId", cid)));
                                 }
                                 public void onFailure(String e) { log("setLocalDescription: " + e); close(); }
@@ -342,7 +365,7 @@ public final class HostMain {
         }
 
         @Override public void onIceCandidate(RTCIceCandidate c) {
-            sendSignal(Json.map("type", "CANDIDATE", "dst", remote, "payload",
+            sendSignal(via, Json.map("type", "CANDIDATE", "dst", remote, "payload",
                     Json.map("candidate", Json.map("candidate", c.sdp, "sdpMid", c.sdpMid, "sdpMLineIndex", c.sdpMLineIndex),
                              "type", "data", "connectionId", cid)));
         }

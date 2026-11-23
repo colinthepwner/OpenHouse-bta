@@ -31,6 +31,15 @@ public final class Rtc {
 
     public static final String PREFIX = "openhouse-";
 
+    public static final String[] SIGNALS = { sig_url("OPENHOUSE_SIGNAL1", "wss://0.peerjs.com:443/peerjs?key=peerjs"),
+            sig_url("OPENHOUSE_SIGNAL2", "wss://oh-signal.mcre.workers.dev/peerjs?key=peerjs") };
+    public static final String[] SIGNAL_NAMES = { "matchmaking server", "backup matchmaking server" };
+
+    static String sig_url(String env, String def) {
+        String s = System.getenv(env);
+        return s != null && !s.isEmpty() ? s : def;
+    }
+
     public static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
     public static final int PICKED_MIN = 6, PICKED_MAX = 16;

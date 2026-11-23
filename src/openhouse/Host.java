@@ -94,6 +94,7 @@ public final class Host {
                 BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8));
                 String line;
                 String noLib = null;
+                String said = null;
                 while ((line = r.readLine()) != null) {
                     if (line.startsWith(Rtc.NO_LIB)) {
                         noLib = line.substring(Rtc.NO_LIB.length());
@@ -102,7 +103,8 @@ public final class Host {
                         if (!c.equals(code)) code = c;
                         takenSaid = false;
                         saver.save(c, token);
-                        log.accept("Room code: " + c + "   (players: Multiplayer > Room Code, or the OpenHouse helper)");
+                        if (!c.equals(said)) log.accept("Room code: " + c + "   (players: Multiplayer > Room Code, or the OpenHouse helper)");
+                        said = c;
                     } else if (line.startsWith("TAKEN ")) {
                         String c = line.substring(6).trim();
                         Consumer<String> t = onTaken;
