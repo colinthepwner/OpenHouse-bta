@@ -177,6 +177,7 @@ public final class HostMain {
                     public void onClosed(String w) { synchronized (done) { why[0] = w; done.notifyAll(); } }
                 });
                 sigs[k] = s;
+                long[] beats = { System.currentTimeMillis(), System.currentTimeMillis() };
                 if (down > 0) log("reached the " + name + " again");
                 down = 0;
 
@@ -184,7 +185,7 @@ public final class HostMain {
                     while (why[0] == null && mine.equals(code)) {
                         done.wait(5000);
                         if (why[0] == null) {
-                            try { s.send("{\"type\":\"HEARTBEAT\"}"); } catch (IOException e) { break; }
+                            try { openhouse.Rtc.beat(k, s, beats); } catch (IOException e) { break; }
                         }
                     }
                 }
@@ -203,7 +204,7 @@ public final class HostMain {
                     taken = 0;
                 }
             } else taken = 0;
-            try { Thread.sleep(idTaken[0] ? 15000 : down > 3 ? 30000 : down > 0 ? 5000 : mine.equals(code) ? 5000 : 200); }
+            try { Thread.sleep(idTaken[0] ? 15000 : down > 20 ? 300000 : down > 3 ? 30000 : down > 0 ? 5000 : mine.equals(code) ? 5000 : 200); }
             catch (InterruptedException e) { return; }
         }
     }

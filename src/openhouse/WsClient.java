@@ -154,6 +154,8 @@ public final class WsClient {
         }
     }
 
+    public void ping() throws IOException { sendFrame(0x9, new byte[0]); }
+
     public void send(String text) throws IOException {
         sendFrame(0x1, text.getBytes(StandardCharsets.UTF_8));
     }

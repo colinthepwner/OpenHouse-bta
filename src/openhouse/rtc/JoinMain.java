@@ -190,11 +190,12 @@ public final class JoinMain {
                     public void onClosed(String w) { synchronized (done) { why[0] = w; done.notifyAll(); } }
                 });
                 signal = s;
+                long[] beats = { System.currentTimeMillis(), System.currentTimeMillis() };
                 synchronized (done) {
                     while (why[0] == null) {
                         done.wait(5000);
                         if (why[0] == null) {
-                            try { s.send("{\"type\":\"HEARTBEAT\"}"); } catch (IOException e) { break; }
+                            try { openhouse.Rtc.beat(k, s, beats); } catch (IOException e) { break; }
                         }
                     }
                 }

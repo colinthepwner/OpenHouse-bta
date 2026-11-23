@@ -35,6 +35,14 @@ public final class Rtc {
             sig_url("OPENHOUSE_SIGNAL2", "wss://oh-signal.mcre.workers.dev/peerjs?key=peerjs") };
     public static final String[] SIGNAL_NAMES = { "matchmaking server", "backup matchmaking server" };
 
+    static final long BEAT2_MS = 120000, PING_MS = 30000;
+
+    public static void beat(int k, WsClient s, long[] t) throws java.io.IOException {
+        long now = System.currentTimeMillis();
+        if (k == 0 || now - t[0] >= BEAT2_MS) { s.send("{\"type\":\"HEARTBEAT\"}"); t[0] = t[1] = now; }
+        else if (now - t[1] >= PING_MS) { s.ping(); t[1] = now; }
+    }
+
     static String sig_url(String env, String def) {
         String s = System.getenv(env);
         return s != null && !s.isEmpty() ? s : def;
