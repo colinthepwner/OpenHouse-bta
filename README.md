@@ -1,15 +1,8 @@
-![OpenHouse: play BTA! with your friends. No IP, no port forwarding, just a code.](art/openhouse-hero.png)
+![OpenHouse: play BTA! with your friends, no port forwarding.](art/openhouse-hero.png)
 
 # OpenHouse
 
 Easily launch a BTA! server for you and your friends, zero port forwarding.
-
-- **Room codes.** Share a short code instead of an IP.
-- **Mods come with you.** Friends get your mods and texture packs automatically.
-- **Voice chat.** Talk to whoever is nearby.
-- **Rewind.** Go back to any earlier save of your world.
-- **Player locator.** Always find your friends.
-- **Always online.** Run a server that stays up with OpenHost.
 
 ## Download
 
