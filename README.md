@@ -1,4 +1,4 @@
-![OpenHouse: play BTA! with your friends, no port forwarding.](art/openhouse-hero.png)
+![OpenHouse: play BTA! with your friends, no port forwarding.](art/oh-banner.png)
 
 # OpenHouse
 
