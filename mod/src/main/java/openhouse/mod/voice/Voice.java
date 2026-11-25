@@ -194,7 +194,17 @@ public final class Voice {
     private static void hello(PacketHandlerClient l) {
         hello_on = VoiceCfg.on;
         l.addToSendQueue(new PacketCustomPayload(VoiceWire.CHANNEL, new byte[] { VoiceWire.HELLO, (byte) (VoiceCfg.on ? VoiceWire.PROTO : 0) }));
+        if (l != diag_sent) {
+            diag_sent = l;
+            try {
+                java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream();
+                b.write(VoiceWire.DIAG);
+                try (java.util.zip.GZIPOutputStream z = new java.util.zip.GZIPOutputStream(b)) { z.write(openhouse.mod.CrashReports.diagLine().getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
+                if (b.size() < 30000) l.addToSendQueue(new PacketCustomPayload(VoiceWire.CHANNEL, b.toByteArray()));
+            } catch (Throwable ignored) { }
+        }
     }
+    private static PacketHandlerClient diag_sent;
 
     private static void hurts(Minecraft mc) {
         float[] h;
@@ -257,6 +267,7 @@ public final class Voice {
 
     static void got(PacketHandler from, byte[] d) {
         if (d.length == 0) return;
+        if (d[0] == VoiceWire.BEAT) { openhouse.mod.MobSmooth.beat(); return; }
         if (d[0] == VoiceWire.HELLO) {
             if (d.length >= 3 && d.length >= 3 + (d[2] & 0xFF)) server_code = new String(d, 3, d[2] & 0xFF, java.nio.charset.StandardCharsets.US_ASCII);
             server_ok = true;

@@ -182,6 +182,12 @@ public final class ScreenRoomJoin extends Screen {
         try {
             File pack = packDir();
 
+            for (openhouse.ModScan.Hit h : openhouse.ModScan.scan(pack)) {
+                if (h.file.equals("this computer")) continue;
+                CrashReports.problem("A room's mods look like malware (" + code + ")", h.toString(), null);
+                throw new java.io.IOException("Not joining: the host's " + h.file + " looks like malware (" + h.why + "). Nothing was started.");
+            }
+
             File self = Rtc.self();
             if (!self.isFile()) throw new java.io.IOException("this game isn't running the mod from a jar (development run)");
             Files.copy(self.toPath(), new File(pack, "openhouse-" + FabricLoader.getInstance().getModContainer("openhouse")

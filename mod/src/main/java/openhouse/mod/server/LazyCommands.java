@@ -31,6 +31,8 @@ public final class LazyCommands {
         return s.getDimensionWorld(0).getCommandManager().getDispatcher();
     }
 
+    static final java.util.regex.Pattern WL = java.util.regex.Pattern.compile("(?i)whitelist\\s+(on|off|list|add|remove)(\\s+\\S+)?\\s*");
+
     static boolean exact(MinecraftServer s, String cmd) {
         try {
             ParseResults<CommandSource> p = dispatcher(s).parse(cmd, new ConsoleCommandSource(s));
@@ -46,6 +48,12 @@ public final class LazyCommands {
         if (in.startsWith("/")) in = in.substring(1).trim();
         if (in.isEmpty()) return null;
         try { in = players(s, in); } catch (Throwable ignored) { }
+
+        java.util.regex.Matcher wl = WL.matcher(in);
+        if (wl.matches()) {
+            String r = "oh whitelist " + wl.group(1).toLowerCase(java.util.Locale.ROOT) + (wl.group(2) == null ? "" : " " + wl.group(2).trim());
+            if (exact(s, r)) return new Result(r, true);
+        }
         if (exact(s, in)) return new Result(in, !in.equals(typed.trim()));
         try {
             String r = lazy(s, in);

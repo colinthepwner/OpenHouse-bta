@@ -5,7 +5,7 @@ plugins {
 
 val lwjglNatives = resolveLwjglNatives()
 
-val modVersion = "${providers.gradleProperty("mod_version").get()}+${libs.versions.bta.get()}"
+val modVersion = providers.gradleProperty("mod_version").get() + "+universal"
 
 run {
 	val v = providers.gradleProperty("mod_version").get()

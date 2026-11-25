@@ -35,6 +35,7 @@ public final class OpenHost {
         File self = Rtc.self();
         File here = serverFolder(self, args);
         File data = new File(here, "openhouse");
+        crashReports(here);
         say("OpenHost " + Version.VERSION + ": a Better than Adventure server that players join by room code");
         say("Server folder: " + here);
         removeUpdateCopy(self);
@@ -42,6 +43,8 @@ public final class OpenHost {
 
         noDialogs = pass.contains("nogui") || pass.contains("--nogui");
         if (!safeToStart(here, pass)) System.exit(1);
+
+        openhouse.OpenHostList.add(here);
 
         File lib = new File(data, "lib");
         File serverJar;
@@ -53,6 +56,7 @@ public final class OpenHost {
             serverJar = Rtc.btaServer(lib, status);
             loader = Rtc.babricLoader(lib, status);
         } catch (IOException e) {
+            report(here, new openhouse.OhCrash.Report("OpenHost", "Couldn't get the server ready").error(e), true);
             say("Can't get the server ready: " + e.getMessage());
             say("(It needs the internet the first time, to download BTA's server and the mod loader. Try again in a moment.)");
             System.exit(1);
@@ -85,6 +89,9 @@ public final class OpenHost {
         int exit;
         boolean first = true, wasUp = false;
         while (true) {
+            applyModChanges(here);
+            HERE = here;
+            state("starting");
             List<String> cmd = new ArrayList<>();
             cmd.add(javaBinary());
 
@@ -123,18 +130,30 @@ public final class OpenHost {
             Thread echo = echoOutput(p, startLines, up, crashed, tail, crashedRunning);
             if (first) {
                 forwardConsole();
+                watchControl(here);
                 Runtime.getRuntime().addShutdownHook(new Thread(OpenHost::stopServer, "OpenHost stop"));
                 first = false;
             }
             exit = p.waitFor();
+            state(null);
             echo.join(5000);
             server = null;
             synchronized (startLines) { wasUp |= up[0]; }
             if (exit == RESTART_EXIT) { say("Restarting the server..."); continue; }
             boolean diedStarting;
             synchronized (startLines) { diedStarting = !up[0] && crashed[0]; }
+            if (diedStarting) {
+                List<String> sl;
+                synchronized (startLines) { sl = new ArrayList<>(startLines); }
+                report(here, new openhouse.OhCrash.Report("OpenHost", "The server couldn't start").bta(btaVer(serverJar)).mods(mods)
+                        .trace(openhouse.OhCrash.story(sl, 200)).blame(blameStart(mods, sl)).log(sl, 600), false);
+            }
             if (diedStarting && ++failedStarts <= 15 && setAsideCulprits(mods, startLines)) { say("Starting again..."); continue; }
             if (crashedRunning[0] && exit != RESTART_EXIT) {
+                List<String> tl;
+                synchronized (startLines) { tl = new ArrayList<>(tail); }
+                report(here, new openhouse.OhCrash.Report("OpenHost", "The server crashed while running").bta(btaVer(serverJar)).mods(mods)
+                        .trace(openhouse.OhCrash.story(tl, 200)).log(tl, 400), false);
                 if (++runningCrashes <= 5 && setAsideRunningCrash(mods, tail)) { say("Starting again..."); continue; }
             }
             break;
@@ -144,12 +163,64 @@ public final class OpenHost {
 
     private static int failedStarts, runningCrashes;
 
+    static void crashReports(File here) {
+        openhouse.OhCrash.journalDir(here);
+        openhouse.OhCrash.enabled(here);
+        openhouse.OhCrash.sendPending(here);
+        openhouse.OhCrash.section("OpenHost", () -> {
+            StringBuilder b = new StringBuilder();
+            b.append("Folder: ").append(here.getName()).append(", ui ").append(uiMode(here, new ArrayList<>())).append(", memory setting ").append(memorySetting(here)).append('\n');
+            b.append("Starts that failed: ").append(failedStarts).append(", crashes while running: ").append(runningCrashes).append('\n');
+            File[] off = new File(here, "mods").listFiles((d, n) -> n.endsWith(".disabled"));
+            if (off != null && off.length > 0) { b.append("Set aside:"); for (File f : off) b.append(' ').append(f.getName()); b.append('\n'); }
+            return b.toString();
+        });
+        openhouse.OhCrash.section("Players who joined (their own games)", () -> {
+            File d = new File(here, "openhouse/players-diag.txt");
+            return openhouse.OhCrash.readText(d);
+        });
+        openhouse.OhCrash.section("Malware check", () -> openhouse.ModScan.text(new File(here, "mods")));
+
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            report(here, new openhouse.OhCrash.Report("OpenHost", "OpenHost itself crashed (" + t.getName() + ")").error(e).mods(new File(here, "mods")), true);
+            e.printStackTrace();
+            if (t.getName().equals("main")) System.exit(1);
+        });
+        openhouse.ModScan.warnAsync(new File(here, "mods"), OpenHost::say);
+
+        Runnable quiet = () -> openhouse.OhCrash.flushSoft(here, new openhouse.OhCrash.Report("OpenHost", "Things went wrong quietly").mods(new File(here, "mods")), true);
+        openhouse.OhCrash.softTimer(quiet);
+        Runtime.getRuntime().addShutdownHook(new Thread(quiet, "OpenHost quiet problems"));
+    }
+
+    static String btaVer(File jar) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)+(?:_\\d+)?").matcher(jar.getName());
+        return m.find() ? m.group() : jar.getName();
+    }
+
+    static void report(File here, openhouse.OhCrash.Report r, boolean wait) {
+        try { openhouse.OhCrash.send(here, r, wait); } catch (Throwable ignored) { }
+    }
+
+    static String blameStart(File mods, List<String> lines) {
+        try {
+            File[] jars = mods.listFiles((d, n) -> n.toLowerCase(java.util.Locale.ROOT).endsWith(".jar"));
+            if (jars == null) return null;
+            Map<String, String> why = new java.util.LinkedHashMap<>();
+            Set<String> bad = ModCrash.culprits(lines, ModCrash.idsOf(java.util.Arrays.asList(jars)), new java.util.HashSet<>(), why);
+            List<String> out = new ArrayList<>();
+            for (String id : bad) out.add(why.containsKey(id) ? id + " (breaks " + why.get(id) + ")" : id);
+            return out.isEmpty() ? null : String.join(", ", out);
+        } catch (Throwable t) { return null; }
+    }
+
     static Thread echoOutput(Process p, List<String> startLines, boolean[] up, boolean[] crashed, List<String> tail, boolean[] crashedRunning) {
         Thread t = new Thread(() -> {
             try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
                 String l;
                 while ((l = r.readLine()) != null) {
                     System.out.println(l);
+                    openhouse.OhCrash.soft(l);
                     synchronized (startLines) {
                         if (up[0]) {
                             tail.add(l);
@@ -157,11 +228,10 @@ public final class OpenHost {
                             if (l.contains(openhouse.mod.server.ServerRoom.CRASH_MARKER)) crashedRunning[0] = true;
                             continue;
                         }
-                        if (l.contains("Done (") && l.contains("For help")) { up[0] = true; startLines.clear(); continue; }
+                        if (l.contains("Done (") && l.contains("For help")) { up[0] = true; startLines.clear(); state("up"); continue; }
                         startLines.add(l);
                         if (startLines.size() > 4000) startLines.remove(0);
-                        if (!crashed[0] && (l.contains("Failed to start the minecraft server") || l.contains("A mod crashed on startup")
-                                || l.contains("Exception in thread \"main\"") || l.contains("Incompatible mods found"))) {
+                        if (!crashed[0] && ModCrash.failedStartLine(l)) {
                             crashed[0] = true;
                             Thread k = new Thread(() -> {
                                 try { Thread.sleep(5000); } catch (InterruptedException ignored) { }
@@ -232,7 +302,8 @@ public final class OpenHost {
         if (jars == null || jars.length == 0) return false;
         Map<String, List<File>> byId = ModCrash.idsOf(java.util.Arrays.asList(jars));
         Set<String> bad;
-        synchronized (lines) { bad = ModCrash.culprits(new ArrayList<>(lines), byId, new java.util.HashSet<>()); }
+        Map<String, String> why = new java.util.LinkedHashMap<>();
+        synchronized (lines) { bad = ModCrash.culprits(new ArrayList<>(lines), byId, new java.util.HashSet<>(), why); }
         boolean any = false;
         for (String id : bad) {
             for (File j : byId.getOrDefault(id, java.util.Collections.emptyList())) {
@@ -240,7 +311,9 @@ public final class OpenHost {
                 if (off.exists()) off.delete();
                 if (j.renameTo(off)) {
                     any = true;
-                    say("mods/" + j.getName() + " (" + id + ") can't run on a server. It's for players' own games. Set it aside as " + off.getName() + ".");
+                    String v = why.get(id);
+                    if (v != null) say("mods/" + j.getName() + " (" + id + ") breaks " + v + ": both change the same part of the game. Set it aside as " + off.getName() + ". Put it back once one of them updates.");
+                    else say("mods/" + j.getName() + " (" + id + ") can't run on a server. It's for players' own games. Set it aside as " + off.getName() + ".");
                 } else {
                     say("mods/" + j.getName() + " (" + id + ") stops the server from starting, and it can't be renamed. Take it out of mods/.");
                 }
@@ -386,6 +459,7 @@ public final class OpenHost {
     }
 
     static void say(String s) {
+        openhouse.OhCrash.note(s);
         System.out.println("[OpenHost] " + s);
         System.out.flush();
     }
@@ -643,6 +717,67 @@ public final class OpenHost {
         try {
             javax.swing.JOptionPane.showMessageDialog(null, msg, "OpenHost", javax.swing.JOptionPane.WARNING_MESSAGE);
         } catch (Throwable ignored) { }
+    }
+
+    static volatile File HERE;
+    static void state(String what) {
+        File h = HERE;
+        if (h == null) return;
+        File f = new File(h, "openhouse/running.txt");
+        try {
+            if (what == null) { f.delete(); return; }
+            f.getParentFile().mkdirs();
+            java.nio.file.Files.write(f.toPath(), (what + " " + ProcessHandle.current().pid() + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (IOException ignored) { }
+    }
+
+    static void applyModChanges(File here) {
+        File f = new File(here, "openhouse/mod-changes.txt");
+        if (!f.isFile()) return;
+        try {
+            for (String l : java.nio.file.Files.readAllLines(f.toPath(), java.nio.charset.StandardCharsets.UTF_8)) {
+                String[] w = l.trim().split(" ", 2);
+                if (w.length < 2 || w[1].contains("/") || w[1].contains("\\") || w[1].contains("..")) continue;
+                File jar = new File(here, "mods/" + w[1]);
+                if (w[0].equals("rm")) { if (jar.delete()) say("Took " + w[1] + " out of mods/ (the game no longer has it)"); }
+                else if (w[0].equals("put")) {
+                    File staged = new File(here, "openhouse/mod-staged/" + w[1]);
+                    if (staged.isFile()) {
+                        java.nio.file.Files.move(staged.toPath(), jar.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        say("Updated mods/" + w[1] + " from the game");
+                    }
+                }
+            }
+        } catch (IOException e) {
+            say("(couldn't finish the game's mod changes: " + e.getMessage() + ")");
+        }
+        f.delete();
+    }
+
+    private static void watchControl(File here) {
+        File f = new File(here, "openhouse/control.txt");
+        Thread t = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(1000);
+                    if (!f.isFile()) continue;
+                    String what = new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8).trim();
+                    f.delete();
+                    OutputStream o = serverIn;
+                    if (what.equals("restart") && o != null) {
+                        say("Restarting for new mods from the game...");
+                        o.write("oh restart\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        o.flush();
+                    } else if (what.equals("stop") && o != null) {
+                        say("Stopping (asked by the game)...");
+                        o.write("stop\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        o.flush();
+                    }
+                } catch (InterruptedException e) { return; } catch (Exception ignored) { }
+            }
+        }, "OpenHost control");
+        t.setDaemon(true);
+        t.start();
     }
 
     private static void forwardConsole() {

@@ -51,10 +51,28 @@ public final class VoiceRelay {
         AfkServer.load();
     }
 
+    static final java.util.Map<PacketHandler, long[]> rate = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+    static boolean allowed(PacketHandler from, byte kind) {
+        long now = System.currentTimeMillis();
+        long[] r = rate.computeIfAbsent(from, k -> new long[6]);
+        synchronized (r) {
+            if (now / 1000 != r[0]) { r[0] = now / 1000; r[1] = 0; r[2] = 0; }
+            if (now / 60000 != r[3]) { r[3] = now / 60000; r[4] = 0; }
+            if (kind == VoiceWire.UP) return ++r[1] <= 75;
+            if (kind == VoiceWire.DIAG) { if (now - r[5] < 10000) return false; r[5] = now; return true; }
+            if (kind == VoiceWire.HURT_SET || kind == VoiceWire.HURT_ADD || kind == VoiceWire.DEATH_SET) return ++r[4] <= 8 && ++r[2] <= 10;
+            return ++r[2] <= 20;
+        }
+    }
+
     static void got(PacketHandler from, byte[] d) {
-        if (!on || d.length == 0) return;
+        if (d.length == 0) return;
+        if (!allowed(from, d[0])) return;
         MinecraftServer srv = MinecraftServer.getInstance();
         if (srv == null || srv.playerList == null) return;
+
+        if (d[0] == VoiceWire.DIAG) { PlayerServer me = find(srv, from); ServerDiag.got(me == null ? "?" : me.username, d); return; }
+        if (!on) return;
         if (d[0] == VoiceWire.HURT_SET) { hurt_set(srv, from, d); return; }
         if (d[0] == VoiceWire.HURT_ADD) { hurt_add(srv, from, d); return; }
         if (d[0] == VoiceWire.DEATH_SET) { death_set(srv, from, d); return; }
@@ -248,8 +266,15 @@ public final class VoiceRelay {
         heard_q.add(h);
     }
 
+    static final byte[] BEAT = { VoiceWire.BEAT };
+
     public static void tick() {
         try { MinecraftServer s = MinecraftServer.getInstance(); if (s != null && s.playerList != null) AfkServer.tick(s); } catch (Throwable ignored) { }
+
+        try {
+            MinecraftServer s = MinecraftServer.getInstance();
+            if (s != null && s.playerList != null) for (PlayerServer p : players(s)) if (known.contains(p.playerNetServerHandler)) send(p, BEAT);
+        } catch (Throwable ignored) { }
         Heard h;
         while ((h = heard_q.poll()) != null) {
             PlayerServer p = h.who;

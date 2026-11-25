@@ -84,8 +84,35 @@ public final class ScreenRewind extends Screen {
 
     private int CW = 128, CH = 72, PITCH = CW + GAP;
 
+    private final openhouse.OpenHostList.Server server;
+
+    public ScreenRewind(Screen parent, openhouse.OpenHostList.Server s, String name) {
+        super(parent);
+        this.server = s;
+        this.dir = null;
+        this.name = name == null || name.isEmpty() ? s.level : name;
+        this.world = s.world();
+        List<File> t = new ArrayList<>(WorldGuard.timeline(world));
+        Collections.reverse(t);
+        snaps = t;
+        sel = snaps.size();
+        loadPictures();
+    }
+
+    private void loadPictures() {
+        Thread l = new Thread(() -> {
+            for (int i = snaps.size() - 1; i >= 0; i--) {
+                File f = new File(snaps.get(i), WorldGuard.THUMB);
+                try { if (f.isFile()) { BufferedImage img = ImageIO.read(f); if (img != null) loaded.put(snaps.get(i), img); } } catch (Exception ignored) { }
+            }
+        }, "OpenHouse rewind pictures");
+        l.setDaemon(true);
+        l.start();
+    }
+
     public ScreenRewind(Screen parent, String dir, String name) {
         super(parent);
+        this.server = null;
         this.dir = dir;
         this.name = name == null || name.isEmpty() ? dir : name;
         this.world = WorldGuard.saveDir(dir);
@@ -132,7 +159,8 @@ public final class ScreenRewind extends Screen {
     }
 
     private void sync() {
-        go.displayString = I18n.getInstance().translateKey(now() ? "gui.openhouse.rewind.button.play" : "gui.openhouse.rewind.button.load");
+        go.displayString = server != null ? (now() ? "Join Server" : "Restore This Save")
+                : I18n.getInstance().translateKey(now() ? "gui.openhouse.rewind.button.play" : "gui.openhouse.rewind.button.load");
         go.enabled = !working && sel >= 0 && sel <= snaps.size();
         back.enabled = !working;
         left.visible = right.visible = !working;
@@ -143,6 +171,7 @@ public final class ScreenRewind extends Screen {
     @Override protected void buttonClicked(@NotNull ButtonElement b) {
         if (!b.enabled) return;
         if (b == back) mc.displayScreen(getParentScreen());
+        else if (b == go && server != null) { if (now()) mc.displayScreen(ScreenOpenHost.play(getParentScreen(), server)); else restore(); }
         else if (b == go) { if (now()) play(dir); else load(); }
         else if (b == left) { first = Math.max(0, first - 1); sync(); }
         else if (b == right) { first = Math.min(maxFirst(), first + 1); sync(); }
@@ -153,6 +182,34 @@ public final class ScreenRewind extends Screen {
         mc.playerController = new PlayerControllerSP(mc);
         mc.startWorld(folder);
         mc.displayScreen(null);
+    }
+
+    private void restore() {
+        if (MoveToOpenHost.running(server, false)) { error = "Its OpenHost server is running. Stop it first (Stop in the OpenHost window)."; return; }
+        File from = snaps.get(sel);
+        working = true;
+        error = null;
+        status = "Restoring...";
+        sync();
+        Thread t = new Thread(() -> {
+            try {
+                WorldGuard.startVisit(world, from, (what, pct) -> status = "Restoring... " + pct + "%");
+                WorldGuard.endVisit(world, true);
+                openhouse.OhCrash.note("restored OpenHost world " + server.level + " from " + from.getName());
+                status = "Restored. Join Server plays it.";
+                List<File> l = new ArrayList<>(WorldGuard.timeline(world));
+                Collections.reverse(l);
+                snaps = l;
+                sel = snaps.size();
+            } catch (Throwable e) {
+                OpenHouseMod.LOG.warn("couldn't restore {} from the timeline: {}", server.level, e.toString());
+                error = e.getMessage() == null ? e.toString() : e.getMessage();
+                status = null;
+            } finally {
+                working = false;
+            }
+        }, "OpenHouse timeline restore");
+        t.start();
     }
 
     private void load() {

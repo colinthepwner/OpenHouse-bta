@@ -25,7 +25,7 @@ public final class WorldGuard {
 
     private static boolean no_prune;
     static final long HOUR = 3600_000L, DAY = 24 * HOUR;
-    public static final String THUMB = "thumb.png";
+    public static final String THUMB = "thumb.png", SHOT = "shot.png";
     static final long MIN_FREE = 1L << 30;
 
     static boolean roomFor(File dir, long bytes) {
@@ -72,6 +72,9 @@ public final class WorldGuard {
     public static volatile String pendingChat;
 
     static File backupsRoot(File world) {
+
+        File parent = world.getAbsoluteFile().getParentFile();
+        if (parent != null && new File(parent, "server.properties").isFile()) return new File(new File(new File(parent, "openhouse"), "backups"), world.getName());
         return new File(new File(OpenHouseMod.dataDir(), "backups"), world.getName());
     }
 
@@ -139,7 +142,14 @@ public final class WorldGuard {
             copied++;
         }
         File thumb = new File(dest, THUMB);
-        if (!WorldShots.write(world.getName(), thumb) && prev != null && new File(prev, THUMB).isFile()) {
+        boolean shot;
+        try { shot = WorldShots.write(world.getName(), thumb); } catch (Throwable t) { shot = false; }
+
+        File left = new File(root, SHOT);
+        if (!shot && left.isFile()) {
+            try { Files.copy(left.toPath(), thumb.toPath(), StandardCopyOption.REPLACE_EXISTING); shot = true; } catch (IOException ignored) { }
+        }
+        if (!shot && prev != null && new File(prev, THUMB).isFile()) {
 
             try { Files.createLink(thumb.toPath(), new File(prev, THUMB).toPath()); }
             catch (Exception e) { try { Files.copy(new File(prev, THUMB).toPath(), thumb.toPath()); } catch (Exception ignored) { } }

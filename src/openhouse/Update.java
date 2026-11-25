@@ -173,6 +173,8 @@ public final class Update {
     public static File download(Release r, File dir, Progress p) throws IOException {
         if (r.url == null || !r.url.startsWith(DOWNLOADS)) throw new IOException("unexpected download address");
         if (r.file == null || !r.file.matches("[A-Za-z0-9._+\\-]{1,120}")) throw new IOException("unexpected file name");
+
+        if (r.sha256 == null || !r.sha256.matches("[0-9a-f]{64}")) throw new IOException("the update has no checksum, not taking it");
         if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("can't create " + dir);
         File part = new File(dir, r.file + ".part"), done = new File(dir, r.file);
         MessageDigest md;

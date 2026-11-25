@@ -34,6 +34,17 @@ public final class Main {
             else rest.add(a);
         }
         File dir = dataDir();
+
+        File base = dir.getAbsoluteFile().getParentFile();
+        OhCrash.journalDir(base);
+        OhCrash.enabled(base);
+        OhCrash.sendPending(base);
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            OhCrash.send(base, new OhCrash.Report("Helper", "The helper crashed (" + t.getName() + ")").error(e).info("Command", String.join(" ", args)), true);
+            e.printStackTrace();
+            if (t.getName().equals("main")) System.exit(1);
+        });
+        OhCrash.note("helper start: " + String.join(" ", args));
         removeUpdateCopy();
         if (!noUpdate && System.getenv("OPENHOUSE_UPDATED") == null && selfUpdate(dir, args)) return;
         if (rest.isEmpty()) {

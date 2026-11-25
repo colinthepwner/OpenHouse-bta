@@ -142,11 +142,29 @@ public final class JoinMain {
         acceptLoop(v4);
     }
 
+    static volatile boolean test_dropped;
+    static void testDrop(Socket s) {
+        String v = System.getenv("OPENHOUSE_TEST_DROP");
+        if (v == null || test_dropped) return;
+        long ms;
+        try { ms = Long.parseLong(v.trim()); } catch (NumberFormatException e) { return; }
+        Thread t = new Thread(() -> {
+            try { Thread.sleep(ms); } catch (InterruptedException e) { return; }
+            if (test_dropped || s.isClosed()) return;
+            test_dropped = true;
+            log("TEST: dropping the game's connection now (OPENHOUSE_TEST_DROP)");
+            try { s.close(); } catch (IOException ignored) { }
+        }, "openhouse test drop");
+        t.setDaemon(true);
+        t.start();
+    }
+
     static void acceptLoop(ServerSocket ss) {
         while (true) {
             try {
                 Socket s = ss.accept();
                 s.setTcpNoDelay(true);
+                testDrop(s);
                 Link l = new Link(s);
                 Thread t = new Thread(() -> { learn_host(); l.begin(); }, "openhouse link");
                 t.setDaemon(true);
@@ -467,6 +485,8 @@ public final class JoinMain {
         return word.startsWith("FGOT ");
     }
 
+    static final long MAX_GET = 300L << 20, MAX_GET_ALL = 3L << 30;
+    static long fetched;
     static void modGet(String sha, String file, java.io.File dir) throws Exception {
         if (!file.matches("[A-Za-z0-9._+\\-]{1,120}")) throw new IOException("bad file name " + file);
         modSend("GET " + sha);
@@ -476,6 +496,11 @@ public final class JoinMain {
         if (head == null || head.get("error") != null || !(head.get("size") instanceof Number))
             throw new IOException("the host can't send " + file + (head != null && head.get("error") != null ? " (" + head.get("error") + ")" : ""));
         long size = ((Number) head.get("size")).longValue();
+
+        if (size < 0 || size > MAX_GET) throw new IOException(file + " is too big to take (" + (size >> 20) + " MB)");
+        if (fetched + size > MAX_GET_ALL) throw new IOException("the host's files add up to more than " + (MAX_GET_ALL >> 30) + " GB");
+        if (dir.getUsableSpace() > 0 && dir.getUsableSpace() < size + (512L << 20)) throw new IOException("not enough disk space for " + file);
+        fetched += size;
         java.io.File part = new java.io.File(dir, file + ".part");
         java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
         long got = 0, lastReport = 0;
@@ -485,6 +510,7 @@ public final class JoinMain {
                 if (b == null) throw new IOException("the transfer of " + file + " stalled");
                 if (!(Boolean) b[0]) throw new IOException("unexpected message during " + file);
                 byte[] bytes = (byte[]) b[1];
+                if (got + bytes.length > size) { o.close(); part.delete(); throw new IOException("the host sent more of " + file + " than it said"); }
                 o.write(bytes);
                 md.update(bytes);
                 got += bytes.length;
@@ -497,6 +523,10 @@ public final class JoinMain {
         StringBuilder hex = new StringBuilder();
         for (byte x : md.digest()) hex.append(String.format("%02x", x & 0xff));
         if (!hex.toString().equals(sha)) { part.delete(); throw new IOException(file + " arrived damaged (checksum)"); }
+        if (file.toLowerCase(java.util.Locale.ROOT).endsWith(".jar") || file.toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
+            String bomb = openhouse.ModScan.bomb(part);
+            if (bomb != null) { part.delete(); throw new IOException(file + " from the host was refused: " + bomb); }
+        }
         java.io.File dest = new java.io.File(dir, file);
         if (dest.exists() && !dest.delete()) throw new IOException("can't replace " + dest);
         if (!part.renameTo(dest)) throw new IOException("can't move " + part + " into place");

@@ -44,6 +44,10 @@ public final class OpenHousePreLaunch implements PreLaunchEntrypoint {
 
     @Override
     public void onPreLaunch() {
+
+        try {
+            if (FabricLoader.getInstance().getEnvironmentType() == net.fabricmc.api.EnvType.CLIENT) CrashReports.install();
+        } catch (Throwable t) { OpenHouseMod.LOG.warn("crash reports are off: {}", t.toString()); }
         try {
             run();
         } catch (Throwable t) {
@@ -82,6 +86,8 @@ public final class OpenHousePreLaunch implements PreLaunchEntrypoint {
 
     static void unzip(File zip, File to) throws IOException {
         java.nio.file.Path root = to.toPath().toAbsolutePath().normalize();
+        long total = 0;
+        int files = 0;
         try (ZipInputStream in = new ZipInputStream(new FileInputStream(zip))) {
             ZipEntry e;
             while ((e = in.getNextEntry()) != null) {
@@ -89,7 +95,15 @@ public final class OpenHousePreLaunch implements PreLaunchEntrypoint {
                 if (!out.startsWith(root)) continue;
                 if (e.isDirectory()) { Files.createDirectories(out); continue; }
                 Files.createDirectories(out.getParent());
-                Files.copy(in, out, StandardCopyOption.REPLACE_EXISTING);
+
+                if (++files > 20000) throw new IOException("the host's settings have too many files");
+                try (java.io.OutputStream o = Files.newOutputStream(out)) {
+                    byte[] buf = new byte[16384];
+                    for (int n; (n = in.read(buf)) > 0; ) {
+                        if ((total += n) > (200L << 20)) throw new IOException("the host's settings unpack to more than 200 MB");
+                        o.write(buf, 0, n);
+                    }
+                }
             }
         }
     }

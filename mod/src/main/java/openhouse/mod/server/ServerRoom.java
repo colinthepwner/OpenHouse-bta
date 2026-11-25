@@ -65,13 +65,64 @@ public final class ServerRoom {
         return p != null && h.equalsIgnoreCase(p.username);
     }
 
+    public static final int ROOM_CAP = openhouse.mod.RoomCap.CAP;
+    public static final String FULL = openhouse.mod.RoomCap.FULL;
+    private static final java.util.Map<String, Long> full_told = new java.util.HashMap<>();
+    private static long full_any;
+
+    static String roomFull(String name) {
+        if (OPENHOST) return null;
+        MinecraftServer server = MinecraftServer.getInstance();
+        if (server == null || server.playerList == null) return null;
+        int on;
+        try { on = server.playerList.playerEntities.size(); } catch (RuntimeException e) { return null; }
+        if (on < ROOM_CAP) return null;
+        LOG.info("{} couldn't join: OpenHouse rooms hold {} players (OpenHost has no such limit)", name, ROOM_CAP);
+        tellHostFull(server, name);
+        return FULL;
+    }
+
+    private static synchronized void tellHostFull(MinecraftServer server, String name) {
+        String Y = String.valueOf(net.minecraft.core.net.command.TextFormatting.YELLOW);
+        long now = System.currentTimeMillis();
+        String k = name.toLowerCase(java.util.Locale.ROOT);
+        Long last = full_told.get(k);
+        if (last != null && now - last < 600_000) return;
+        if (now - full_any < 300_000) return;
+        full_told.put(k, now);
+        full_any = now;
+        if (full_told.size() > 500) full_told.clear();
+        String[] lines = LAN
+                ? new String[] { Y + name + " couldn't join: Open to Friends worlds hold " + ROOM_CAP + " players.",
+                                 Y + "For more, close the world and use Move to OpenHost (the server rack button in your world list)." }
+                : new String[] { Y + name + " couldn't join: OpenHouse rooms hold " + ROOM_CAP + " players.",
+                                 Y + "For more, run this server with OpenHost.jar (github.com/colinthepwner/OpenHouse-bta)." };
+        try {
+            for (net.minecraft.server.entity.player.PlayerServer p : new java.util.ArrayList<>(server.playerList.playerEntities)) {
+                boolean boss = LAN ? isLanHostName(p.username) : (p.uuid != null && server.playerList.isOp(p.uuid));
+                if (boss) for (String l : lines) Say.to(p, l);
+            }
+        } catch (Throwable t) { LOG.info("couldn't tell the host the room is full: {}", t.toString()); }
+    }
+
+    static boolean isLanHostName(String n) { String h = lanHostName; return h != null && n != null && h.equalsIgnoreCase(n); }
+
     public static String loginRefusal(String name, java.util.UUID id, String proof, boolean host) {
         if (host || name == null) return null;
         ServerRoom r = INSTANCE;
+        String full = roomFull(name);
+        if (full != null) return full;
         String pw = r.password;
-        if (!pw.isEmpty() && !openhouse.RoomPassword.matches(pw, proof, name)) {
-            LOG.info("{} {} - turned away", name, proof == null ? "didn't give the server's password" : "gave a wrong password");
-            return proof == null ? openhouse.RoomPassword.NEEDED : openhouse.RoomPassword.WRONG;
+        if (!pw.isEmpty()) {
+            if (proof == null) { LOG.info("{} didn't give the server's password - turned away", name); return openhouse.RoomPassword.NEEDED; }
+            if (openhouse.RoomPassword.isOld(proof)) { LOG.info("{} has an OpenHouse too old for the server's password - turned away", name); return openhouse.RoomPassword.OLD; }
+            if (openhouse.RoomPassword.locked(name)) { LOG.info("{} is locked out after wrong passwords - turned away", name); return openhouse.RoomPassword.LOCKED; }
+            if (!openhouse.RoomPassword.matches(pw, proof, name)) {
+                openhouse.RoomPassword.wrongGuess(name);
+                LOG.info("{} gave a wrong (or reused) password - turned away", name);
+                return openhouse.RoomPassword.WRONG;
+            }
+            openhouse.RoomPassword.rightGuess(name);
         }
         if (r.whitelist && !r.whitelistNames.contains(name.toLowerCase(java.util.Locale.ROOT))) {
             MinecraftServer server = MinecraftServer.getInstance();

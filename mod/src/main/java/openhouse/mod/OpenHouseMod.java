@@ -38,6 +38,8 @@ public final class OpenHouseMod implements ClientModInitializer {
     }
 
     public static void clientTick(Minecraft mc) {
+        try { CrashReports.tick(mc); } catch (Throwable ignored) { }
+        try { ScreenReconnect.watch(mc); } catch (Throwable ignored) { }
 
         String repaired = WorldGuard.pendingChat;
         if (repaired != null && mc.currentWorld != null && !mc.isMultiplayerWorld() && mc.hudIngame != null && mc.thePlayer != null) {
@@ -174,22 +176,27 @@ public final class OpenHouseMod implements ClientModInitializer {
         return new File(FabricLoader.getInstance().getGameDir().toFile(), MOD_ID);
     }
 
+    public static Joiner joinerNow() { return joiner; }
+
     public static synchronized Joiner joinerFor(String code) {
         if (joiner != null && joiner.code.equals(code) && joiner.alive()) {
             joiner.probe();
             return joiner;
         }
         if (joiner != null) joiner.stop();
-        joiner = new Joiner(dataDir(), code, s -> LOG.info("[room {}] {}", code, s));
+        joiner = new Joiner(dataDir(), code, s -> { LOG.info("[room {}] {}", code, s); openhouse.OhCrash.note("[room " + code + "] " + s); });
         joiner.pack = PACK.equals(code);
         joiner.start();
         return joiner;
     }
 
-    private static volatile String connectHost;
-    private static volatile int connectPort;
+    static volatile String connectHost;
+    static volatile int connectPort;
 
     public static void connectingTo(String host, int port) {
+
+        openhouse.OpenHostList.Server oh = OpenHostWorlds.playing;
+        if (oh != null && (port != oh.port || !"127.0.0.1".equals(host))) OpenHostWorlds.playing = null;
         connectHost = host;
         connectPort = port;
         connectTarget = targetFor(host, port);

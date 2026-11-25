@@ -3,9 +3,9 @@
 	"id": "openhouse",
 	"version": "${version}",
 	"name": "OpenHouse",
-	"description": "Play with friends using a room code. Credits: webrtc-java by devopvoid, built on Google's WebRTC; PeerJS's free server for finding rooms; and the official Better than Adventure server for hosting.",
+	"description": "Play BTA! with your friends using a room code. No port forwarding.\\n\\nMade with \\u2764\\ufe0f by @colinthepwner\\n\\nThanks to webrtc-java, PeerJS and the BTA! team.",
 	"authors": [
-		"colin"
+		"colinthepwner"
 	],
 	"contact": {
 		"homepage": "https://github.com/colinthepwner/OpenHouse-bta",

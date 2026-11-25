@@ -92,14 +92,14 @@ public final class ClientCode {
         return null;
     }
 
-    private static final class Pool {
+    static final class Pool {
         byte[] tag;
         int[] a;
         String[] utf8;
         int body;
     }
 
-    private static Pool pool(byte[] b) {
+    static Pool pool(byte[] b) {
         if (b.length < 10 || u4(b, 0) != 0xCAFEBABEL) return null;
         int n = u2(b, 8);
         Pool p = new Pool();
@@ -145,7 +145,7 @@ public final class ClientCode {
         return p;
     }
 
-    private static String className(Pool p, int idx) {
+    static String className(Pool p, int idx) {
         if (idx <= 0 || idx >= p.tag.length) return null;
         if (p.tag[idx] == 9 || p.tag[idx] == 10 || p.tag[idx] == 11) return className(p, p.a[idx]);
         if (p.tag[idx] != 7) return null;
@@ -255,7 +255,7 @@ public final class ClientCode {
         }
     }
 
-    private static String descriptorClass(String d) {
+    static String descriptorClass(String d) {
         if (d == null) return null;
         int i = 0;
         while (i < d.length() && d.charAt(i) == '[') i++;
@@ -268,23 +268,23 @@ public final class ClientCode {
         return (i < 0 ? internalName : internalName.substring(i + 1)).replace('$', '.');
     }
 
-    private static int u2(byte[] b, int i) { return ((b[i] & 0xFF) << 8) | (b[i + 1] & 0xFF); }
+    static int u2(byte[] b, int i) { return ((b[i] & 0xFF) << 8) | (b[i + 1] & 0xFF); }
 
-    private static long u4(byte[] b, int i) {
+    static long u4(byte[] b, int i) {
         return ((long) (b[i] & 0xFF) << 24) | ((b[i + 1] & 0xFF) << 16) | ((b[i + 2] & 0xFF) << 8) | (b[i + 3] & 0xFF);
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Object> list(Object o) {
+    static List<Object> list(Object o) {
         return o instanceof List ? (List<Object>) o : java.util.Collections.emptyList();
     }
 
-    private static String text(ZipFile z, String name) throws IOException {
+    static String text(ZipFile z, String name) throws IOException {
         byte[] b = bytes(z, name);
         return b == null ? null : new String(b, StandardCharsets.UTF_8);
     }
 
-    private static byte[] bytes(ZipFile z, String name) throws IOException {
+    static byte[] bytes(ZipFile z, String name) throws IOException {
         ZipEntry e = z.getEntry(name);
         if (e == null || e.getSize() > 4 * 1024 * 1024) return null;
         try (InputStream in = z.getInputStream(e)) { return in.readAllBytes(); }

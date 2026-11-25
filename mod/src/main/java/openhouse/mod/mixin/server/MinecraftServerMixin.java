@@ -29,6 +29,10 @@ public abstract class MinecraftServerMixin {
     @Inject(method = "doTick", at = @At("HEAD"), require = 0)
     private void openhouse$tick(CallbackInfo ci) {
         if (ServerRoom.OPENHOST) openhouse.mod.server.HostWindow.TICKS.incrementAndGet();
+        try { openhouse.mod.server.ServerBackups.tick((MinecraftServer) (Object) this); } catch (Throwable ignored) { }
+        try { openhouse.mod.server.OwnerLeave.tick((MinecraftServer) (Object) this); } catch (Throwable ignored) { }
+        try { openhouse.mod.server.Seamless.tick((MinecraftServer) (Object) this); } catch (Throwable ignored) { }
+        openhouse.mod.server.Stall.tick();
         if (ServerRoom.STATS_MS > 0) ServerRoom.statsTickStart();
     }
 
@@ -53,6 +57,8 @@ public abstract class MinecraftServerMixin {
 
     @Redirect(method = "run", at = @At(value = "INVOKE", target = "Ljava/lang/System;exit(I)V"), require = 0)
     private void openhouse$exitCode(int code) {
+
+        try { openhouse.mod.server.ServerBackups.atStop((MinecraftServer) (Object) this); } catch (Throwable ignored) { }
         System.exit(ServerRoom.restartRequested && ServerRoom.OPENHOST ? openhouse.mod.OpenHost.RESTART_EXIT : code);
     }
 
@@ -66,6 +72,7 @@ public abstract class MinecraftServerMixin {
     @Inject(method = "initWorld", at = @At("HEAD"), require = 0)
     private void openhouse$waitForWorld(CallbackInfo ci) {
         ServerRoom.waitForWorld();
+        try { openhouse.mod.server.ServerBackups.atStart((MinecraftServer) (Object) this); } catch (Throwable ignored) { }
     }
 
     @Redirect(method = "initWorld", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/world/chunk/provider/ChunkProviderServer;prepareChunk(II)Lnet/minecraft/core/world/chunk/Chunk;"), require = 0)

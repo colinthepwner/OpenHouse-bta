@@ -127,8 +127,8 @@ public final class ServerMods {
         return dir;
     }
 
-    static Set<String> culprits(List<String> lines, List<Entry> in, Set<String> leftOutIds) {
-        return ModCrash.culprits(lines, jarsOf(in), leftOutIds);
+    static Set<String> culprits(List<String> lines, List<Entry> in, Set<String> leftOutIds, Map<String, String> why) {
+        return ModCrash.culprits(lines, jarsOf(in), leftOutIds, why);
     }
 
     static Map<String, List<File>> jarsOf(List<Entry> in) {

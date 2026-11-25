@@ -36,14 +36,18 @@ final class LocatorCommand {
                         .executes(c -> per_player(c, v)));
     }
 
+    static World overworld(MinecraftServer s) {
+        return s == null || s.dimensionWorlds == null ? null : s.getDimensionWorld(0);
+    }
+
     static boolean rule_on(MinecraftServer s) {
-        World w = s == null ? null : s.getDimensionWorld(0);
+        World w = overworld(s);
         return w == null || !Boolean.FALSE.equals(w.getLevelData().getGameRules().getValue(VoiceWire.LOCATOR));
     }
 
     static int rule(CommandSource src, boolean on) {
         MinecraftServer s = MinecraftServer.getInstance();
-        World w = s == null ? null : s.getDimensionWorld(0);
+        World w = overworld(s);
         if (w == null) return 0;
         w.getLevelData().getGameRules().setValue(VoiceWire.LOCATOR, on);
         src.sendPacketToAllPlayers(() -> new PacketGameRule(w.getLevelData().getGameRules()));

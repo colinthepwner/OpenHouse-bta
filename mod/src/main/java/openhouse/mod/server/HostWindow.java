@@ -185,6 +185,8 @@ public final class HostWindow {
         frame.setSize(1100, 680);
         frame.setMinimumSize(new Dimension(760, 460));
         frame.setLocationRelativeTo(null);
+
+        if (Boolean.getBoolean("openhouse.openhost.minimized")) frame.setExtendedState(java.awt.Frame.ICONIFIED);
         frame.setVisible(true);
         SwingUtilities.invokeLater(() -> split.setDividerLocation(frame.getWidth() - 330));
         input.requestFocusInWindow();
@@ -491,6 +493,23 @@ public final class HostWindow {
         locatorBox.setAlignmentX(0);
         locatorBox.addActionListener(e -> run("oh locator " + (locatorBox.isSelected() ? "on" : "off")));
         p.add(locatorBox);
+        p.add(Box.createVerticalStrut(10));
+
+        JPanel cap = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 0, 0));
+        cap.setAlignmentX(0);
+        cap.add(new JLabel("Player limit  "));
+        int had = 20;
+        try { had = MinecraftServer.getInstance().maxPlayers; } catch (Throwable ignored) { }
+        javax.swing.JSpinner capBox = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(Math.max(1, Math.min(500, had)), 1, 500, 1));
+        capBox.addChangeListener(e -> {
+            int n = (Integer) capBox.getValue();
+            try { MinecraftServer.getInstance().maxPlayers = n; } catch (Throwable ignored) { }
+            HostUi.write("max-players", String.valueOf(n));
+            note("Player limit: " + n + ".");
+        });
+        cap.add(capBox);
+        cap.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        p.add(cap);
         p.add(Box.createVerticalStrut(16));
 
         p.add(section("Memory"));

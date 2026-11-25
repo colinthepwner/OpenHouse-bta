@@ -25,6 +25,17 @@ public final class MobSmooth {
     public static void stamp(long ms, boolean has_rot) { stamp(ms, has_rot, true); }
     public static void stamp(long ms) { stamp(ms, true); }
     public static boolean take_rot() { boolean r = rot; rot = false; return r; }
+
+    static volatile long beat_at;
+    static final long OUT = 200;
+    static final double GLIDE = 600;
+    public static void beat() { beat_at = wall.getAsLong(); }
+    static boolean outage() {
+        long b = beat_at;
+        if (b == 0) return false;
+        long q = wall.getAsLong() - b;
+        return q > OUT && q < 30_000;
+    }
     public static long spawn;
 
     static double tick_lock(long arr) {
@@ -231,7 +242,7 @@ public final class MobSmooth {
         if (calm > 0) calm_t++;
         if (calm > 0 && (still || conf > CALM_CONF || calm_t > 40) && --calm == 0) { double cx = dx(now), cy = dy(now), cz = dz(now); blend(now, cx, cy, cz); }
 
-        if (!still && now - st > (per + 1) * TICK + Math.max(40, jit * 4)) {
+        if (!still && !outage() && now - st > (per + 1) * TICK + Math.max(40, jit * 4)) {
 
             double cx = dx(now), cy = dy(now), cz = dz(now);
             still = true;
@@ -250,6 +261,8 @@ public final class MobSmooth {
 
     double span(double now, boolean lead) {
         double age = now - st, full = (per + 1) * TICK;
+
+        if (outage() && calm == 0 && !still) return Math.max(0, GLIDE * (1 - Math.exp(-age / GLIDE)) + (lead ? LEAD * conf : 0));
         if (calm > 0) return Math.max(0, Math.min(age, CALM_SPAN));
         if (age > full) age = full + (age - full) * 0.25;
         age = Math.min(age, full + TICK * 3);
@@ -268,7 +281,7 @@ public final class MobSmooth {
     double hx, hz;
     void at_xz(double now) {
         double x = fx + dsp(vx, now, true), z = fz + dsp(vz, now, true), l = Math.hypot(vx, vz);
-        if (l > 1e-12) {
+        if (l > 1e-12 && !outage()) {
 
             double age = now - st, run = still ? 0 : (per > 1 ? Math.min(Math.max(0, now - la), per * TICK) : 0) + Math.max(0, Math.min(Math.max(CAPJ, jit * JK), age - per * TICK));
             double e = (x - lx) * vx / l + (z - lz) * vz / l - CAP - l * run;

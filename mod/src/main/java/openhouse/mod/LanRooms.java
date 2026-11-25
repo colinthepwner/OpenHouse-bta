@@ -87,8 +87,12 @@ public final class LanRooms {
         if (world == null || world.trim().isEmpty()) world = code;
         String key = run != null ? "s" + run : "c" + code;
         synchronized (LanRooms.class) {
+
+            long now = System.currentTimeMillis();
+            rooms.values().removeIf(x -> now - x.seen > 60000);
+            if (!rooms.containsKey(key) && rooms.size() >= 64) return;
             Room r = new Room(key, code, world.trim(), pw);
-            r.seen = System.currentTimeMillis();
+            r.seen = now;
             rooms.put(key, r);
         }
     }

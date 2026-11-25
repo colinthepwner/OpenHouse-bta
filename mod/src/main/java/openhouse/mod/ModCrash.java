@@ -26,8 +26,19 @@ final class ModCrash {
     static final Pattern FRAME = Pattern.compile("^\\s*at ([A-Za-z0-9_$.]+)\\.[A-Za-z0-9_$<>]+\\(");
 
     static Set<String> culprits(List<String> lines, Map<String, List<File>> jars, Set<String> leftOutIds) {
+        return culprits(lines, jars, leftOutIds, null);
+    }
+
+    static Set<String> culprits(List<String> lines, Map<String, List<File>> jars, Set<String> leftOutIds, Map<String, String> why) {
         Map<String, List<File>> byId = jars;
         Set<String> out = new LinkedHashSet<>();
+
+        Map<String, Set<String>> clash = MixinClash.blame(lines, jars);
+        for (Map.Entry<String, Set<String>> e : clash.entrySet()) for (String c : e.getValue()) {
+            out.add(c);
+            if (why != null) why.putIfAbsent(c, e.getKey());
+        }
+        if (!out.isEmpty()) return out;
         for (String l : lines) {
             if (l.contains("/WARN]")) continue;
             Matcher m = MIXIN_FAILED.matcher(l);
@@ -121,6 +132,12 @@ final class ModCrash {
             if (id != null) return id;
         }
         return null;
+    }
+
+    static boolean failedStartLine(String l) {
+        return l.contains("Failed to start the minecraft server") || l.contains("A mod crashed on startup")
+                || l.contains("Exception in thread \"main\"") || l.contains("Incompatible mods found")
+                || l.trim().endsWith("/ERROR]: Unexpected exception");
     }
 
     static boolean clientOnlyCrash(List<String> lines) {

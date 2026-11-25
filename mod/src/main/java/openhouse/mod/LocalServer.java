@@ -119,6 +119,22 @@ public final class LocalServer {
         return s;
     }
 
+    File serverDir() { return new File(OpenHouseMod.dataDir(), "server"); }
+    List<String> consoleTail(int n) {
+        File f = new File(serverDir(), "console.log");
+        try {
+            List<String> l = java.nio.file.Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
+            return new ArrayList<>(l.subList(Math.max(0, l.size() - n), l.size()));
+        } catch (Exception e) {
+            synchronized (recent) { return new ArrayList<>(recent); }
+        }
+    }
+    String serverModText() {
+        StringBuilder b = new StringBuilder("Server's mods (" + serverMods.size() + "):\n");
+        for (ServerMods.Entry e : serverMods) b.append(String.format(java.util.Locale.ROOT, "  %-24s %-20s %s%s%n", e.id, e.version, e.jar == null ? "" : e.jar.getName(), e.clientOnly ? " (client only)" : ""));
+        return b.toString();
+    }
+
     private void set(State s, String d) {
         state = s;
         detail = d == null ? "" : d;
@@ -206,7 +222,8 @@ public final class LocalServer {
                     java.nio.file.Files.copy(new File(dir, "console.log").toPath(), new File(dir, "console-failed-" + attempt + ".log").toPath(),
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException ignored) { }
-                Set<String> bad = ServerMods.culprits(lines, in, leftIds);
+                Map<String, String> why = new LinkedHashMap<>();
+                Set<String> bad = ServerMods.culprits(lines, in, leftIds, why);
                 if (bad.isEmpty() || attempt >= 15) {
                     OpenHouseMod.LOG.warn("Open to Friends: the server for {} couldn't start (its errors are above) - everything it printed is in {}", worldDir, new File(dir, "console.log"));
                     set(State.FAILED, "The server couldn't start. See openhouse/server/console.log.");
@@ -214,10 +231,16 @@ public final class LocalServer {
                 }
                 Map<String, String> skip = new LinkedHashMap<>();
                 List<String> names = new ArrayList<>();
-                for (ServerMods.Entry e : in) if (bad.contains(e.id)) { skip.put(e.id, e.version); names.add(e.name); }
+                List<String> clashed = new ArrayList<>();
+                for (ServerMods.Entry e : in) if (bad.contains(e.id)) {
+                    skip.put(e.id, e.version); names.add(e.name);
+                    String v = why.get(e.id);
+                    if (v != null) for (ServerMods.Entry x : in) if (x.id.equals(v)) clashed.add(e.name + " breaks " + x.name);
+                }
                 ServerMods.remember(skip);
-                OpenHouseMod.LOG.info("leaving {} out of the Open to Friends server - it stopped the server from starting (it still runs in the game)", names);
-                set(State.STARTING, "Leaving out " + String.join(", ", names) + " (can't run on a server). Starting again...");
+                OpenHouseMod.LOG.info("leaving {} out of the Open to Friends server - it stopped the server from starting (it still runs in the game){}", names,
+                        clashed.isEmpty() ? "" : ": " + String.join(", ", clashed) + " (both change the same part of the game)");
+                set(State.STARTING, "Leaving out " + String.join(", ", names) + (clashed.isEmpty() ? " (can't run on a server)" : " (" + String.join(", ", clashed) + ")") + ". Starting again...");
             }
         } catch (Exception e) {
             OpenHouseMod.LOG.warn("Open to Friends failed", e);
@@ -372,8 +395,7 @@ public final class LocalServer {
                     if (recent.size() > 400) recent.removeFirst();
                     forward(line);
 
-                    if (state == State.STARTING && !dying && (line.contains("Failed to start the minecraft server")
-                            || line.contains("A mod crashed on startup") || line.contains("Exception in thread \"main\""))) {
+                    if (state == State.STARTING && !dying && ModCrash.failedStartLine(line)) {
                         dying = true;
                         Thread k = new Thread(() -> {
                             try { Thread.sleep(5000); } catch (InterruptedException ignored) { }
@@ -620,7 +642,7 @@ public final class LocalServer {
             w.write("online-mode=" + online + "\n");
 
             w.write("motd=" + worldDir.replace("\n", " ") + OpenHouseMod.LAN_MARK + "\n");
-            w.write("max-players=8\n");
+            w.write("max-players=" + (RoomCap.CAP + 1) + "\n");
             w.write("spawn-protection=0\n");
             w.write("difficulty=" + (d == null ? 2 : d.id()) + "\n");
             w.write("view-distance=" + render + "\n");

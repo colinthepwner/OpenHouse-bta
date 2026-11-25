@@ -56,6 +56,8 @@ public class Vt {
         CLASS_RENAMES.put("net/minecraft/client/render/EntityRendererDispatcher", "net/minecraft/client/render/EntityRenderDispatcher");
 
         CLASS_RENAMES.put("net/minecraft/core/net/packet/PacketHandshake", "net/minecraft/core/net/packet/PacketPreLogin");
+
+        CLASS_RENAMES.put("net/minecraft/core/net/packet/PacketMessage", "net/minecraft/core/net/packet/PacketChat");
         CLASS_RENAMES.put("net/minecraft/core/net/packet/PacketPlaySoundDirect", "net/minecraft/core/net/packet/PacketPlaySoundEffectDirect");
 
         CLASS_RENAMES.put("net/minecraft/core/world/lighting/LightingEngineLegacy$LightUpdate", "net/minecraft/core/world/chunk/LightUpdate");
@@ -2303,6 +2305,8 @@ public class Vt {
         MIXIN_SELECTORS.put(pc + "handleMoveEntity", "handleEntity");
         MIXIN_SELECTORS.put(pc + "handleTeleportEntity", "handleEntityTeleport");
         MIXIN_SELECTORS.put(pc + "handleAddEntity", "handleVehicleSpawn");
+        MIXIN_SELECTORS.put("net/minecraft/server/net/handler/PacketHandlerServer.handleMessage", "handleChat");
+        MIXIN_SELECTORS.put("net/minecraft/server/net/handler/PacketHandlerServer.handlePlayerAction", "handleBlockDig");
         MIXIN_SELECTORS.put("net/minecraft/client/sound/SoundEngine.playBackgroundSound", "tick");
         MIXIN_SELECTORS.put("net/minecraft/client/sound/SoundEngine.tickBackgroundMusic", "tick");
 

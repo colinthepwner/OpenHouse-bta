@@ -86,7 +86,7 @@ public final class Firewall {
                     in.append("$p = ").append(q(p)).append("\n");
                     in.append("Get-NetFirewallApplicationFilter | ? { $_.Program -and [Environment]::ExpandEnvironmentVariables($_.Program) -ieq $p } | Get-NetFirewallRule"
                             + " | ? { $_.Action -eq 'Block' -or $_.DisplayName -eq " + q(RULE) + " } | Remove-NetFirewallRule\n");
-                    in.append("if (Test-Path $p) { New-NetFirewallRule -DisplayName ").append(q(RULE)).append(" -Direction Inbound -Program $p -Action Allow -Profile Any | Out-Null }\n");
+                    in.append("if (Test-Path $p) { New-NetFirewallRule -DisplayName ").append(q(RULE)).append(" -Direction Inbound -Program $p -Action Allow -Profile Private,Domain | Out-Null }\n");
                 }
                 String outer = "Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','" + enc(in.toString()) + "'";
                 Process p = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", enc(outer)).redirectErrorStream(true).start();

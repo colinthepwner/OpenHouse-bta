@@ -44,6 +44,54 @@ public final class HostMain {
 
     static final long OPEN_TIMEOUT_MS = 45000;
 
+    static final int MAX_PEERS = 48, MAX_PEERS_PER_SRC = 4, OFFERS_PER_MIN_SRC = 12, OFFERS_PER_MIN = 90;
+    static final long QUEUE_GAME = 4L << 20, QUEUE_MODS = 12L << 20, QUEUE_ALL = 40L << 20;
+    static final long ROOM_UPLOADS_PER_DAY = 1L << 30;
+    static final java.util.concurrent.atomic.AtomicLong queued_all = new java.util.concurrent.atomic.AtomicLong();
+    static final Map<String, long[]> offers_by = new ConcurrentHashMap<>();
+    static long offers_min, offers_cnt;
+
+    static synchronized boolean offerOk(String src) {
+        long min = System.currentTimeMillis() / 60000;
+        if (offers_min != min) { offers_min = min; offers_cnt = 0; offers_by.clear(); }
+        if (++offers_cnt > OFFERS_PER_MIN) return false;
+        long[] c = offers_by.computeIfAbsent(src, k -> new long[1]);
+        if (++c[0] > OFFERS_PER_MIN_SRC) return false;
+        if (peers.size() >= MAX_PEERS) return false;
+        int mine = 0;
+        for (Peer p : peers.values()) if (p.remote.equals(src) && !p.closed) mine++;
+        return mine < MAX_PEERS_PER_SRC;
+    }
+
+    static long uploads_day, uploads_taken;
+    static synchronized long uploadsLeft() {
+        long day = System.currentTimeMillis() / 86400000L;
+        if (day != uploads_day) { uploads_day = day; uploads_taken = 0; }
+        return ROOM_UPLOADS_PER_DAY - uploads_taken;
+    }
+    static synchronized void uploaded(long n) { uploadsLeft(); uploads_taken += n; }
+
+    static final class ByteQ extends LinkedBlockingQueue<byte[]> {
+        final java.util.concurrent.atomic.AtomicLong n = new java.util.concurrent.atomic.AtomicLong();
+        boolean put_capped(byte[] b, long cap) {
+            if (n.get() + b.length > cap || queued_all.get() + b.length > QUEUE_ALL) return false;
+            n.addAndGet(b.length);
+            queued_all.addAndGet(b.length);
+            return super.offer(b);
+        }
+        byte[] gone(byte[] b) {
+            if (b != null && b.length > 0 && n.getAndAdd(-b.length) >= b.length) queued_all.addAndGet(-b.length);
+            if (n.get() < 0) n.set(0);
+            return b;
+        }
+
+        void release() { long left = n.getAndSet(0); if (left > 0) queued_all.addAndGet(-left); }
+        @Override public byte[] take() throws InterruptedException { return gone(super.take()); }
+        @Override public byte[] poll() { return gone(super.poll()); }
+        @Override public byte[] poll(long t, java.util.concurrent.TimeUnit u) throws InterruptedException { return gone(super.poll(t, u)); }
+        @Override public void clear() { byte[] b; while ((b = poll()) != null) { } }
+    }
+
     static final String JOINER_PREFIX = "bta-join-";
 
     static volatile String code;
@@ -257,6 +305,7 @@ public final class HostMain {
             String cid = Json.str(payload.get("connectionId"));
             Map<String, Object> sdp = Json.obj(payload.get("sdp"));
             if (cid == null || sdp == null) return;
+            if (!peers.containsKey(cid) && !offerOk(src)) { debug("offer from " + src + " dropped (flood caps)"); return; }
             Peer old = peers.remove(cid);
             if (old != null) old.close();
             Peer p = new Peer(src, cid, MODS_LABEL.equals(Json.str(payload.get("label"))), Json.str(payload.get("oh")), payload.get("ohp"));
@@ -309,7 +358,7 @@ public final class HostMain {
         volatile Thread upThread;
         static final long UP_LINGER_MS = 1000;
         static final long UP_DRAIN_MS = UP_LINGER_MS + 2000;
-        final BlockingQueue<byte[]> toServer = new LinkedBlockingQueue<>();
+        final ByteQ toServer = new ByteQ();
         volatile boolean closed;
 
         Peer(String remote, String cid, boolean mods, String theirVersion, Object their_proto) {
@@ -387,13 +436,18 @@ public final class HostMain {
                     else if (st == RTCDataChannelState.CLOSED) close();
                 }
                 public void onMessage(RTCDataChannelBuffer b) {
+                    if (closed) return;
 
                     ByteBuffer d = b.data;
                     byte[] bytes = new byte[d.remaining()];
                     d.get(bytes);
 
                     if (DEBUG && bytes.length > 0 && bytes[0] == (byte) 255) debug(cid + " joiner sent a disconnect packet (" + bytes.length + " bytes)");
-                    toServer.offer(bytes);
+
+                    if (!toServer.put_capped(bytes, mods ? QUEUE_MODS : QUEUE_GAME)) {
+                        log("a player sent more than the room can hold - disconnected them");
+                        new Thread(Peer.this::close, "openhouse flood close").start();
+                    }
                 }
             });
 
@@ -476,7 +530,7 @@ public final class HostMain {
             StringBuilder b = new StringBuilder("WANT");
             int n = cmd.indexOf('\n');
             if (n < 0) return b.toString();
-            long room = openhouse.ShareFolders.MAX_TOTAL - accepted;
+            long room = Math.min(openhouse.ShareFolders.MAX_TOTAL - accepted, uploadsLeft());
             for (String line : cmd.substring(n + 1).split("\n")) {
                 String[] f = line.trim().split(" ", 3);
                 if (f.length < 3) continue;
@@ -508,22 +562,35 @@ public final class HostMain {
                 return;
             }
             sendText("FOK " + sha);
-            byte[] bytes = new byte[(int) size];
-            int got = 0;
-            while (got < size && !closed) {
-                byte[] b = toServer.poll(30, java.util.concurrent.TimeUnit.SECONDS);
-                if (b == null) throw new java.io.IOException("the transfer of " + path + " stalled");
-                if (b.length == 0) throw new java.io.IOException("the player left during " + path);
-                if (got + b.length > size) throw new java.io.IOException("too many bytes for " + path);
-                System.arraycopy(b, 0, bytes, got, b.length);
-                got += b.length;
+
+            java.io.File tmp = new java.io.File(poolRoot, ".openhouse-in-" + sha.substring(0, 16) + "-" + cid.hashCode() + ".part");
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            long got = 0;
+            java.io.File dest;
+            try {
+                try (java.io.OutputStream o = new java.io.BufferedOutputStream(new java.io.FileOutputStream(tmp))) {
+                    while (got < size && !closed) {
+                        byte[] b = toServer.poll(30, java.util.concurrent.TimeUnit.SECONDS);
+                        if (b == null) throw new java.io.IOException("the transfer of " + path + " stalled");
+                        if (b.length == 0) throw new java.io.IOException("the player left during " + path);
+                        if (got + b.length > size) throw new java.io.IOException("too many bytes for " + path);
+                        o.write(b);
+                        md.update(b);
+                        got += b.length;
+                    }
+                }
+                if (closed) return;
+                StringBuilder hx = new StringBuilder();
+                for (byte x : md.digest()) hx.append(String.format("%02x", x));
+                if (!hx.toString().equals(sha)) { sendText("FNO " + sha + " damaged"); return; }
+                wanted.remove(sha);
+                wantedPath.remove(sha);
+                accepted += size;
+                uploaded(size);
+                dest = openhouse.ShareFolders.receive(poolRoot, path, tmp, sha);
+            } finally {
+                tmp.delete();
             }
-            if (closed) return;
-            if (!openhouse.Rtc.sha256(bytes).equals(sha)) { sendText("FNO " + sha + " damaged"); return; }
-            wanted.remove(sha);
-            wantedPath.remove(sha);
-            accepted += size;
-            java.io.File dest = openhouse.ShareFolders.receive(poolRoot, path, bytes, sha);
             sendText("FGOT " + sha);
 
             if (dest != null) log("a player added " + path + (dest.getName().equals(new java.io.File(path).getName()) ? "" : " (as " + dest.getName() + ")") + " to this server");
@@ -684,6 +751,7 @@ public final class HostMain {
             debug(cid + " closed" + (piped ? "" : " (never piped)"));
             peers.remove(cid, this);
             toServer.offer(new byte[0]);
+            toServer.release();
 
             final Socket s = tcp;
             final Thread up = upThread;

@@ -32,7 +32,7 @@
     "DataLoaderMixin",
     "HalpLibeConfigMixin",
     "RichPresenceMixin",
-    "ScreenSelectWorldMixin",
+    "ScreenSelectWorldMixin", "WorldSlotMixin", "ButtonFitMixin",
     "VoiceClientMixin",
     "VoiceHudMixin",
     "VoiceDuckMixin",
@@ -53,6 +53,8 @@
     "server.VoiceTickMixin",
     "server.MobTrackMixin",
     "server.MobLookMixin",
-    "server.MobTargetAfkMixin"
+    "server.MobTargetAfkMixin",
+    "server.ChatSpamMixin",
+    "server.SeamlessMixin"
   ]
 }

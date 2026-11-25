@@ -88,4 +88,9 @@ public abstract class PacketHandlerLoginMixin implements LoginFlags {
                 ServerRoom.LOG.info("{} is joining from MCRE (Minecraft in a web browser) - it's a different game underneath, so some things may look or act a little differently for them", packet.username);
         } catch (RuntimeException ignored) { }
     }
+
+    @Redirect(method = "doLogin", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/net/PlayerList;sendPacketToAllPlayers(Lnet/minecraft/core/net/packet/Packet;)V", ordinal = 0), require = 0)
+    private void openhouse$joinedQuietly(net.minecraft.server.net.PlayerList list, net.minecraft.core.net.packet.Packet p) {
+        try { openhouse.mod.server.Seamless.joined(list, p); } catch (Throwable t) { list.sendPacketToAllPlayers(p); }
+    }
 }

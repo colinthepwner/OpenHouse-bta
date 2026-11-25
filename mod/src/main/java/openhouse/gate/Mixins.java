@@ -12,7 +12,8 @@ public final class Mixins implements IMixinConfigPlugin {
 
     @Override public void onLoad(String pkg) { mine = (pkg.startsWith("openhouse.mod7.") || pkg.startsWith("openhouse.v7.")) == Gate.v7(); }
     @Override public String getRefMapperConfig() { return null; }
-    @Override public boolean shouldApplyMixin(String target, String mixin) { return mine; }
+
+    @Override public boolean shouldApplyMixin(String target, String mixin) { return mine && !(Gate.v7() && mixin.endsWith(".WorldSlotMixin")); }
     @Override public void acceptTargets(Set<String> mine, Set<String> others) { }
     @Override public List<String> getMixins() { return null; }
     @Override public void preApply(String target, ClassNode node, String mixin, IMixinInfo info) { }

@@ -9,6 +9,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = Minecraft.class, remap = false)
 public abstract class MinecraftMixin {
+
+    @Inject(method = "onMinecraftCrash", at = @At("HEAD"), require = 0)
+    private void openhouse$crash(net.minecraft.core.UnexpectedThrowable t, CallbackInfo ci) {
+        try { if (!((Minecraft) (Object) this).hasCrashed) openhouse.mod.CrashReports.crash(t.description, t.exception); } catch (Throwable ignored) { }
+    }
+
     @Inject(method = "startWorld", at = @At("HEAD"))
     private void openhouse$startWorld(String worldDirName, CallbackInfo ci) {
         OpenHouseMod.singlePlayerWorld = worldDirName;

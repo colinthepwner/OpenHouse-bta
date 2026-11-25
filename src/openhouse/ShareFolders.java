@@ -142,10 +142,21 @@ public final class ShareFolders {
     }
 
     public static File receive(File root, String path, byte[] bytes, String sha256) throws IOException {
+        File tmp = File.createTempFile("openhouse-in", ".part", root);
+        try {
+            Files.write(tmp.toPath(), bytes);
+            return receive(root, path, tmp, sha256);
+        } finally {
+            tmp.delete();
+        }
+    }
+
+    public static File receive(File root, String path, File in, String sha256) throws IOException {
+        long len = in.length();
         File dest = new File(root, path);
         if (dest.getParentFile() != null) dest.getParentFile().mkdirs();
         if (dest.isFile()) {
-            if (dest.length() == bytes.length && sha256 != null && sha256.equals(Rtc.sha256(dest))) return null;
+            if (dest.length() == len && sha256 != null && sha256.equals(Rtc.sha256(dest))) return null;
             String name = dest.getName();
             int dot = name.lastIndexOf('.');
             String base = dot > 0 ? name.substring(0, dot) : name, ext = dot > 0 ? name.substring(dot) : "";
@@ -153,13 +164,13 @@ public final class ShareFolders {
             for (int n = 2; n < 50; n++) {
                 File f = new File(dest.getParentFile(), base + " (" + n + ")" + ext);
                 if (!f.exists()) { beside = f; break; }
-                if (f.length() == bytes.length && sha256 != null && sha256.equals(Rtc.sha256(f))) return null;
+                if (f.length() == len && sha256 != null && sha256.equals(Rtc.sha256(f))) return null;
             }
             if (beside == null) throw new IOException("too many files called " + name);
             dest = beside;
         }
         File part = new File(dest.getParentFile(), dest.getName() + ".part");
-        Files.write(part.toPath(), bytes);
+        Files.copy(in.toPath(), part.toPath(), StandardCopyOption.REPLACE_EXISTING);
         Files.move(part.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
         return dest;
     }

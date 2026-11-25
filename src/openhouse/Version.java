@@ -3,7 +3,7 @@ package openhouse;
 public final class Version {
     private Version() { }
 
-    public static final String VERSION = "1.1.28";
+    public static final String VERSION = "1.1.29";
 
     public static String base(String v) {
         if (v == null) return null;
@@ -18,7 +18,7 @@ public final class Version {
         return x != null && x.equals(y);
     }
 
-    public static final int PROTOCOL = 1;
+    public static final int PROTOCOL = 2;
 
     static int proto_of(String v) {
         if (base(v) == null) return 0;

@@ -23,11 +23,13 @@ Host from any singleplayer world.
 2. Click **Open to friends**.
 3. Send your friends the room code.
 
-Close the world to end the room. Add mods to your `mods` folder and friends get them when they join.
+Close the world to end the room. Add mods to your `mods` folder and friends get them when they join. Rooms hold up to 9 players.
 
 # Always Online Server
 
 Put **OpenHost.jar** in a folder and double click it. That's it.
+
+Or pick a world in your world list and click the server button to move it to OpenHost. It shows in your list in orange, and clicking it starts the server and joins it.
 
 - Mods go in its `mods` folder, texture packs in `texturepacks`.
 - Type `oh set MYWORLD` in the console to keep the same code.

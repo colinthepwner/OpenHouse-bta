@@ -23,7 +23,10 @@ public final class WorldShots {
     public static void frame(Minecraft mc) {
         String world = OpenHouseMod.singlePlayerWorld;
 
-        if (world == null || mc.currentWorld == null || (mc.currentWorld.isClientSide && !LocalServer.hosting())) { had_screen = mc.currentScreen != null; return; }
+        openhouse.OpenHostList.Server oh = OpenHostWorlds.playing;
+        if (oh != null && mc.currentWorld != null && mc.isMultiplayerWorld()) world = OH + oh.folder.getAbsolutePath();
+
+        else if (world == null || mc.currentWorld == null || (mc.currentWorld.isClientSide && !LocalServer.hosting())) { had_screen = mc.currentScreen != null; return; }
         boolean screen = mc.currentScreen != null;
         long now = System.currentTimeMillis();
         boolean menu_opened = screen && !had_screen;
@@ -51,6 +54,21 @@ public final class WorldShots {
         } catch (Throwable t) {
             return null;
         }
+    }
+
+    static final String OH = "openhost:";
+
+    static void toServer(String key, BufferedImage img) {
+        openhouse.OpenHostList.Server oh = OpenHostWorlds.playing;
+        if (oh == null || !key.equals(OH + oh.folder.getAbsolutePath())) return;
+        try {
+            File d = WorldGuard.backupsRoot(oh.world());
+            d.mkdirs();
+            File tmp = new File(d, "shot.png.part"), f = new File(d, WorldGuard.SHOT);
+            ImageIO.write(img, "png", tmp);
+
+            java.nio.file.Files.move(tmp.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (Throwable ignored) { }
     }
 
     private static void grab(Minecraft mc, String world) {
@@ -84,7 +102,7 @@ public final class WorldShots {
         Thread t = new Thread(() -> {
             try {
                 BufferedImage img = shrink(buf, fw, fh);
-                if (img != null) { last = img; last_world = world; }
+                if (img != null) { last = img; last_world = world; if (world.startsWith(OH)) toServer(world, img); }
                 else last_at = System.currentTimeMillis() - SHOT_MS + 2000;
             } catch (Throwable ignored) {
             } finally { shrinking = false; }
