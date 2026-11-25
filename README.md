@@ -1,6 +1,6 @@
-![OpenHouse: play Better than Adventure (BTA!) multiplayer with your friends, no port forwarding.](art/oh-banner.png)
+![OpenHouse: play Better than Adventure (BTA!) multiplayer with your friends for free, no port forwarding.](art/oh-banner.png)
 
-**OpenHouse** easily launches a Better than Adventure (BTA!) server for you and your friends, zero port forwarding. No Hamachi, playit.gg or ngrok, just a room code.
+**OpenHouse** is a **free** way to launch a Better than Adventure (BTA!) server for you and your friends, zero port forwarding. No Hamachi, playit.gg, ngrok or paid server hosting, just a room code.
 
 ## Download
 
