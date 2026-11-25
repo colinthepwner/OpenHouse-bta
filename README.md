@@ -4,14 +4,14 @@
 
 ## Download
 
+Works on any version of BTA! or Babric for Beta 1.7.3. Players on BTA! 8.0.1 and 7.3 can share a world.
+
 | I want to... | Get this |
 |---|---|
 | Play with friends, the easy way | **[OpenHouse BTA Instance](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHouse-BTA-Instance.zip)** for Prism Launcher or MultiMC (Add Instance, then Import) |
 | Add it to the BTA! I already play | The `openhouse` jar from **[Releases](https://github.com/colinthepwner/OpenHouse-bta/releases/latest)**, into your `mods` folder |
 | Run a server that's always on | **[OpenHost.jar](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHost.jar)** |
 | Play without a mod loader | **[openhouse-helper.jar](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/openhouse-helper.jar)** |
-
-Works on BTA! 8.0.1 and 7.3, and players on both can share a world.
 
 # Ad Hoc
 
