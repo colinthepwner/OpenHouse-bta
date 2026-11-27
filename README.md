@@ -6,6 +6,8 @@
 
 Works on any version of BTA! or Babric for Beta 1.7.3. Players on BTA! 8.0.1 and 7.3 can share a world.
 
+Runs on **Windows, macOS and Linux**, including Apple Silicon Macs and ARM boards. Nothing extra to install.
+
 | I want to... | Get this |
 |---|---|
 | Play with friends, the easy way | **[OpenHouse BTA Instance](https://github.com/colinthepwner/OpenHouse-bta/releases/latest/download/OpenHouse-BTA-Instance.zip)** for Prism Launcher or MultiMC (Add Instance, then Import) |
